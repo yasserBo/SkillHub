@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}
+Learner Registration | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="card auth-card">
+        <div class="card-body p-4 p-md-5">
+            <div class="text-center mb-4">
+                <h1 class="h3 fw-bold">
+                    Create your learner account
+                </h1>
+
+                <p class="text-secondary mb-0">
+                    Join SkillHub and start learning new skills.
+                </p>
+            </div>
+
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                    <div>{{ error }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% for field in form %}
+                <div class="mb-3">
+                    <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
+                        {{ field.label }}
+                    </label>
+
+                    {{ field }}
+
+                    {% if field.help_text %}
+                    <div class="form-text">
+                        {{ field.help_text }}
+                    </div>
+                    {% endif %}
+
+                    {% for error in field.errors %}
+                    <div class="text-danger small mt-1">
+                        {{ error }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+
+                <button type="submit" class="btn btn-primary w-100 py-2">
+                    Create learner account
+                </button>
+            </form>
+
+            <p class="text-center text-secondary mt-4 mb-0">
+                Already have an account?
+
+                <a href="{% url 'accounts:login' %}">
+                    Log in
+                </a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
