@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}
+Learner Dashboard | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="mb-4">
+        <h1 class="fw-bold">Learner Dashboard</h1>
+
+        <p class="text-secondary">
+            Welcome,
+            {{ request.user.first_name|default:request.user.email }}.
+        </p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5">My Courses</h2>
+                    <p class="text-secondary mb-0">
+                        Your enrolled courses will appear here.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5">Learning Progress</h2>
+                    <p class="text-secondary mb-0">
+                        Your progress will appear here.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5">Recommendations</h2>
+                    <p class="text-secondary mb-0">
+                        Recommended courses will appear here.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

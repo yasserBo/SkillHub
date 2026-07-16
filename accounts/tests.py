@@ -317,3 +317,184 @@ class InstructorRegistrationTests(TestCase):
             InstructorProfile.objects.count(),
             0,
         )
+
+class SecureLoginTests(TestCase):
+    """Tests for US-02 secure user login."""
+
+    def setUp(self):
+        self.login_url = reverse("accounts:login")
+        self.logout_url = reverse("accounts:logout")
+
+        self.password = "Mango7!River#Cloud92"
+
+        self.learner = User.objects.create_user(
+            email="learner.login@example.com",
+            password=self.password,
+            first_name="Learner",
+            role=User.Role.LEARNER,
+        )
+
+        self.instructor = User.objects.create_user(
+            email="teacher.login@example.com",
+            password=self.password,
+            first_name="Teacher",
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.admin_user = User.objects.create_superuser(
+            email="admin.login@example.com",
+            password=self.password,
+        )
+
+        self.suspended_user = User.objects.create_user(
+            email="blocked.login@example.com",
+            password=self.password,
+            first_name="Blocked",
+            role=User.Role.LEARNER,
+        )
+
+        self.suspended_user.account_status = (
+            User.AccountStatus.SUSPENDED
+        )
+        self.suspended_user.save()
+
+    def test_login_page_opens(self):
+        response = self.client.get(self.login_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response,
+            "accounts/login.html",
+        )
+
+    def test_learner_login_redirects_to_learner_dashboard(self):
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": self.learner.email,
+                "password": self.password,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:learner_dashboard"),
+        )
+
+        self.assertEqual(
+            int(self.client.session["_auth_user_id"]),
+            self.learner.pk,
+        )
+
+    def test_instructor_login_redirects_to_instructor_dashboard(self):
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": self.instructor.email,
+                "password": self.password,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:instructor_dashboard"),
+        )
+
+        self.assertEqual(
+            int(self.client.session["_auth_user_id"]),
+            self.instructor.pk,
+        )
+
+    def test_administrator_login_redirects_to_admin(self):
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": self.admin_user.email,
+                "password": self.password,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("admin:index"),
+        )
+
+    def test_incorrect_password_is_rejected(self):
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": self.learner.email,
+                "password": "IncorrectPassword!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertNotIn(
+            "_auth_user_id",
+            self.client.session,
+        )
+
+        self.assertContains(
+            response,
+            "Unable to log in with these credentials.",
+        )
+
+    def test_suspended_account_cannot_log_in(self):
+        response = self.client.post(
+            self.login_url,
+            {
+                "username": self.suspended_user.email,
+                "password": self.password,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertNotIn(
+            "_auth_user_id",
+            self.client.session,
+        )
+
+    def test_dashboard_requires_authentication(self):
+        response = self.client.get(
+            reverse("accounts:learner_dashboard")
+        )
+
+        expected_url = (
+            reverse("accounts:login")
+            + "?next="
+            + reverse("accounts:learner_dashboard")
+        )
+
+        self.assertRedirects(
+            response,
+            expected_url,
+        )
+
+    def test_learner_cannot_access_instructor_dashboard(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.get(
+            reverse("accounts:instructor_dashboard")
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:learner_dashboard"),
+        )
+
+    def test_logout_ends_the_session(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.post(self.logout_url)
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:login"),
+        )
+
+        self.assertNotIn(
+            "_auth_user_id",
+            self.client.session,
+        )

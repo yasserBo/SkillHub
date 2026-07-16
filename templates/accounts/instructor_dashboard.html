@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}
+Instructor Dashboard | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="mb-4">
+        <h1 class="fw-bold">Instructor Dashboard</h1>
+
+        <p class="text-secondary">
+            Welcome,
+            {{ request.user.first_name|default:request.user.email }}.
+        </p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5">My Courses</h2>
+                    <p class="text-secondary mb-0">
+                        Your created courses will appear here.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5">Enrolled Learners</h2>
+                    <p class="text-secondary mb-0">
+                        Course participants will appear here.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5">Earnings</h2>
+                    <p class="text-secondary mb-0">
+                        Your earnings will appear here.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
