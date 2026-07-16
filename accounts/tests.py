@@ -1,9 +1,14 @@
-from urllib import response
+import shutil
+import tempfile
+from io import BytesIO
 
-from django.test import TestCase
+from PIL import Image
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import InstructorProfile, User
+from .models import InstructorProfile, LearnerProfile, User
 
 class LearnerRegistrationTests(TestCase):
     def setUp(self):
@@ -497,4 +502,221 @@ class SecureLoginTests(TestCase):
         self.assertNotIn(
             "_auth_user_id",
             self.client.session,
+        )
+
+TEST_MEDIA_ROOT = tempfile.mkdtemp()
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
+class LearnerProfileTests(TestCase):
+    """Tests for US-03 learner profile management."""
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.learner = User.objects.create_user(
+            email="profile.learner@example.com",
+            password=self.password,
+            first_name="Old",
+            last_name="Name",
+            role=User.Role.LEARNER,
+        )
+
+        self.profile, _ = LearnerProfile.objects.get_or_create(
+            user=self.learner,
+        )
+
+        self.instructor = User.objects.create_user(
+            email="profile.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.profile_url = reverse(
+            "accounts:learner_profile"
+        )
+
+        self.edit_url = reverse(
+            "accounts:learner_profile_update"
+        )
+
+    def test_profile_page_requires_login(self):
+        response = self.client.get(self.profile_url)
+
+        expected_url = (
+            reverse("accounts:login")
+            + "?next="
+            + self.profile_url
+        )
+
+        self.assertRedirects(response, expected_url)
+
+    def test_learner_can_view_own_profile(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.get(self.profile_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response,
+            "accounts/learner_profile.html",
+        )
+        self.assertContains(
+            response,
+            "profile.learner@example.com",
+        )
+
+    def test_learner_can_open_profile_edit_page(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.get(self.edit_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response,
+            "accounts/learner_profile_update.html",
+        )
+
+    def test_learner_can_update_profile(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.post(
+            self.edit_url,
+            {
+                "first_name": "Updated",
+                "last_name": "Learner",
+                "email": "updated.learner@example.com",
+                "skills": "Python, Django, Machine Learning",
+                "phone_number": "+49 123456789",
+                "location": "Leipzig, Germany",
+                "biography": (
+                    "I am learning software development "
+                    "and machine learning."
+                ),
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.profile_url,
+        )
+
+        self.learner.refresh_from_db()
+        self.profile.refresh_from_db()
+
+        self.assertEqual(
+            self.learner.first_name,
+            "Updated",
+        )
+        self.assertEqual(
+            self.learner.last_name,
+            "Learner",
+        )
+        self.assertEqual(
+            self.learner.email,
+            "updated.learner@example.com",
+        )
+        self.assertEqual(
+            self.profile.skills,
+            "Python, Django, Machine Learning",
+        )
+        self.assertEqual(
+            self.profile.location,
+            "Leipzig, Germany",
+        )
+
+    def test_duplicate_email_is_rejected(self):
+        User.objects.create_user(
+            email="existing@example.com",
+            password=self.password,
+        )
+
+        self.client.force_login(self.learner)
+
+        response = self.client.post(
+            self.edit_url,
+            {
+                "first_name": "Old",
+                "last_name": "Name",
+                "email": "existing@example.com",
+                "skills": "",
+                "phone_number": "",
+                "location": "",
+                "biography": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Another account already uses this email address.",
+        )
+
+        self.learner.refresh_from_db()
+
+        self.assertEqual(
+            self.learner.email,
+            "profile.learner@example.com",
+        )
+
+    def test_instructor_cannot_edit_learner_profile(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(self.edit_url)
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:dashboard"),
+            fetch_redirect_response=False,
+        )
+
+    def test_profile_picture_can_be_uploaded(self):
+        self.client.force_login(self.learner)
+
+        image_buffer = BytesIO()
+
+        Image.new(
+            "RGB",
+            (10, 10),
+        ).save(
+            image_buffer,
+            format="PNG",
+        )
+
+        image_buffer.seek(0)
+
+        picture = SimpleUploadedFile(
+            "profile.png",
+            image_buffer.read(),
+            content_type="image/png",
+        )
+
+        response = self.client.post(
+            self.edit_url,
+            {
+                "first_name": self.learner.first_name,
+                "last_name": self.learner.last_name,
+                "email": self.learner.email,
+                "skills": "Python",
+                "phone_number": "",
+                "location": "Leipzig",
+                "biography": "",
+                "profile_picture": picture,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.profile_url,
+        )
+
+        self.profile.refresh_from_db()
+
+        self.assertTrue(
+            bool(self.profile.profile_picture)
         )

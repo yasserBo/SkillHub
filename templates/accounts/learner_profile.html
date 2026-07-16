@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}
+My Profile | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 p-md-5">
+
+                    <div class="d-flex flex-column flex-md-row
+                                align-items-md-center gap-4 mb-4">
+
+                        {% if profile.profile_picture %}
+                        <img src="{{ profile.profile_picture.url }}" alt="Profile picture"
+                            class="rounded-circle object-fit-cover" width="120" height="120">
+                        {% else %}
+                        <div class="rounded-circle bg-primary
+                                       text-white d-flex
+                                       align-items-center
+                                       justify-content-center" style="width: 120px; height: 120px;
+                                       font-size: 2.5rem;">
+                            {{ request.user.first_name|first|upper }}
+                        </div>
+                        {% endif %}
+
+                        <div>
+                            <h1 class="h2 fw-bold mb-1">
+                                {{ request.user.first_name }}
+                                {{ request.user.last_name }}
+                            </h1>
+
+                            <p class="text-secondary mb-2">
+                                {{ request.user.email }}
+                            </p>
+
+                            <span class="badge text-bg-primary">
+                                Learner
+                            </span>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <dl class="row mb-4">
+                        <dt class="col-sm-4">Skills</dt>
+                        <dd class="col-sm-8">
+                            {{ profile.skills|default:"Not provided" }}
+                        </dd>
+
+                        <dt class="col-sm-4">Phone number</dt>
+                        <dd class="col-sm-8">
+                            {{ profile.phone_number|default:"Not provided" }}
+                        </dd>
+
+                        <dt class="col-sm-4">Location</dt>
+                        <dd class="col-sm-8">
+                            {{ profile.location|default:"Not provided" }}
+                        </dd>
+
+                        <dt class="col-sm-4">Biography</dt>
+                        <dd class="col-sm-8">
+                            {{ profile.biography|default:"Not provided" }}
+                        </dd>
+                    </dl>
+
+                    <a href="{% url 'accounts:learner_profile_update' %}" class="btn btn-primary">
+                        Edit profile
+                    </a>
+
+                    <a href="{% url 'accounts:learner_dashboard' %}" class="btn btn-outline-secondary">
+                        Back to dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

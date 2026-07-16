@@ -42,4 +42,14 @@ urlpatterns = [
         views.instructor_dashboard,
         name="instructor_dashboard",
     ),
+    path(
+    "profile/",
+    views.learner_profile,
+    name="learner_profile",
+    ),
+    path(
+        "profile/edit/",
+        views.learner_profile_update,
+        name="learner_profile_update",
+    ),
 ]

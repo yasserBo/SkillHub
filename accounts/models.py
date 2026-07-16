@@ -69,6 +69,49 @@ class User(AbstractUser):
     def is_administrator(self):
         return self.role == self.Role.ADMIN
     
+
+class LearnerProfile(models.Model):
+    """Additional profile information belonging to a learner."""
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="learner_profile",
+    )
+
+    profile_picture = models.ImageField(
+        upload_to="profiles/learners/",
+        blank=True,
+        null=True,
+    )
+
+    skills = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Separate skills with commas.",
+    )
+
+    phone_number = models.CharField(
+        max_length=30,
+        blank=True,
+    )
+
+    location = models.CharField(
+        max_length=150,
+        blank=True,
+    )
+
+    biography = models.TextField(
+        max_length=1000,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.email} - Learner Profile"
+    
 class InstructorProfile(models.Model):
     """Professional information belonging to a SkillHub instructor."""
 

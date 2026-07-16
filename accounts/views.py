@@ -6,10 +6,12 @@ from django.urls import reverse
 
 from .forms import (
     InstructorRegistrationForm,
+    LearnerProfileUpdateForm,
     LearnerRegistrationForm,
     SkillHubAuthenticationForm,
 )
-from .models import User
+from .models import LearnerProfile,User
+
 
 
 def learner_register(request):
@@ -166,4 +168,67 @@ def instructor_dashboard(request):
     return render(
         request,
         "accounts/instructor_dashboard.html",
+    )
+
+@login_required
+def learner_profile(request):
+    """Display the logged-in learner's profile."""
+
+    if request.user.role != User.Role.LEARNER:
+        return redirect("accounts:dashboard")
+
+    profile, _ = LearnerProfile.objects.get_or_create(
+        user=request.user,
+    )
+
+    return render(
+        request,
+        "accounts/learner_profile.html",
+        {
+            "profile": profile,
+        },
+    )
+
+
+@login_required
+def learner_profile_update(request):
+    """Allow a learner to update their own profile."""
+
+    if request.user.role != User.Role.LEARNER:
+        return redirect("accounts:dashboard")
+
+    profile, _ = LearnerProfile.objects.get_or_create(
+        user=request.user,
+    )
+
+    if request.method == "POST":
+        form = LearnerProfileUpdateForm(
+            request.POST,
+            request.FILES,
+            instance=profile,
+            user=request.user,
+        )
+
+        if form.is_valid():
+            form.save()
+
+            messages.success(
+                request,
+                "Your profile was updated successfully.",
+            )
+
+            return redirect("accounts:learner_profile")
+    else:
+        form = LearnerProfileUpdateForm(
+            instance=profile,
+            user=request.user,
+        )
+
+    return render(
+        request,
+        "accounts/learner_profile_update.html",
+        {
+            "form": form,
+            "profile": profile,
+        },
     )

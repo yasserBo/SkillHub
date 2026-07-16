@@ -13,6 +13,9 @@ Learner Dashboard | SkillHub
             Welcome,
             {{ request.user.first_name|default:request.user.email }}.
         </p>
+        <a href="{% url 'accounts:learner_profile' %}" class="btn btn-outline-primary">
+            View my profile
+        </a>
     </div>
 
     <div class="row g-4">
