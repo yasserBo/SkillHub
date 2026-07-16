@@ -4,6 +4,7 @@ from django.db import models
 from .managers import UserManager
 
 class User(AbstractUser):
+
     """Main SkillHub user model."""
 
     class Role(models.TextChoices):
@@ -67,3 +68,33 @@ class User(AbstractUser):
     @property
     def is_administrator(self):
         return self.role == self.Role.ADMIN
+    
+class InstructorProfile(models.Model):
+    """Professional information belonging to a SkillHub instructor."""
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="instructor_profile",
+    )
+
+    professional_title = models.CharField(
+        max_length=150,
+        help_text="For example: Software Engineer or Data Scientist.",
+    )
+
+    expertise = models.CharField(
+        max_length=200,
+        help_text="The instructor's main teaching area.",
+    )
+
+    biography = models.TextField(
+        max_length=1000,
+        help_text="A short professional biography.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.email} - Instructor Profile"

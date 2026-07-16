@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}
-Learner Registration | SkillHub
+Instructor Registration | SkillHub
 {% endblock %}
 
 {% block content %}
@@ -10,11 +10,11 @@ Learner Registration | SkillHub
         <div class="card-body p-4 p-md-5">
             <div class="text-center mb-4">
                 <h1 class="h3 fw-bold">
-                    Create your learner account
+                    Become a SkillHub instructor
                 </h1>
 
                 <p class="text-secondary mb-0">
-                    Join SkillHub and start learning new skills.
+                    Create courses and share your knowledge with learners.
                 </p>
             </div>
 
@@ -52,25 +52,25 @@ Learner Registration | SkillHub
                 {% endfor %}
 
                 <button type="submit" class="btn btn-primary w-100 py-2">
-                    Create learner account
+                    Create instructor account
                 </button>
             </form>
 
-            <p class="text-center text-secondary mt-4 mb-0">
-                Already have an account?
+            <div class="text-center mt-4">
+                <p class="text-secondary mb-2">
+                    Already have an account?
+                    <a href="{% url 'accounts:login' %}">
+                        Log in
+                    </a>
+                </p>
 
-                <a href="{% url 'accounts:login' %}">
-                    Log in
-                </a>
-            </p>
-
-            <p class="text-center text-secondary mt-2 mb-0">
-                Want to teach on SkillHub?
-
-                <a href="{% url 'accounts:instructor_register' %}">
-                    Register as an instructor
-                </a>
-            </p>
+                <p class="text-secondary mb-0">
+                    Looking to learn instead?
+                    <a href="{% url 'accounts:learner_register' %}">
+                        Register as a learner
+                    </a>
+                </p>
+            </div>
         </div>
     </div>
 </div>

@@ -13,6 +13,11 @@ urlpatterns = [
         name="learner_register",
     ),
     path(
+        "register/instructor/",
+        views.instructor_register,
+        name="instructor_register",
+    ), 
+    path(
         "login/",
         auth_views.LoginView.as_view(
             template_name="accounts/login.html"

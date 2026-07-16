@@ -2,8 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .forms import CustomUserChangeForm, CustomUserCreationForm
-from .models import User
-
+from .models import InstructorProfile, User
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -100,4 +99,31 @@ class UserAdmin(BaseUserAdmin):
     readonly_fields = (
         "last_login",
         "date_joined",
+    )
+
+@admin.register(InstructorProfile)
+class InstructorProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "professional_title",
+        "expertise",
+        "created_at",
+    )
+
+    search_fields = (
+        "user__email",
+        "user__first_name",
+        "user__last_name",
+        "professional_title",
+        "expertise",
+    )
+
+    list_filter = (
+        "created_at",
+        "updated_at",
+    )
+
+    readonly_fields = (
+        "created_at",
+        "updated_at",
     )
