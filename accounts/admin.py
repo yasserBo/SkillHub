@@ -1,8 +1,9 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .forms import CustomUserChangeForm, CustomUserCreationForm
 from .models import InstructorProfile, LearnerProfile, User
+
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     add_form = CustomUserCreationForm
@@ -99,6 +100,85 @@ class UserAdmin(BaseUserAdmin):
         "last_login",
         "date_joined",
     )
+    actions = (
+        "activate_accounts",
+        "suspend_accounts",
+        "deactivate_accounts",
+    )
+
+    list_per_page = 25
+
+    def _change_account_status(
+        self,
+        request,
+        queryset,
+        new_status,
+    ):
+        """Change account status while protecting administrators."""
+
+        updated_count = 0
+        skipped_count = 0
+
+        for user in queryset:
+            # Do not allow administrators to block themselves
+            # or other superusers through bulk actions.
+            if user.pk == request.user.pk or user.is_superuser:
+                skipped_count += 1
+                continue
+
+            user.account_status = new_status
+            user.save(
+                update_fields=[
+                    "account_status",
+                    "is_active",
+                ]
+            )
+
+            updated_count += 1
+
+        if updated_count:
+            self.message_user(
+                request,
+                f"{updated_count} account(s) updated successfully.",
+                level=messages.SUCCESS,
+            )
+
+        if skipped_count:
+            self.message_user(
+                request,
+                (
+                    f"{skipped_count} administrator account(s) "
+                    "were protected and not changed."
+                ),
+                level=messages.WARNING,
+            )
+
+
+    @admin.action(description="Activate selected accounts")
+    def activate_accounts(self, request, queryset):
+        self._change_account_status(
+            request,
+            queryset,
+            User.AccountStatus.ACTIVE,
+        )
+
+
+    @admin.action(description="Suspend selected accounts")
+    def suspend_accounts(self, request, queryset):
+        self._change_account_status(
+            request,
+            queryset,
+            User.AccountStatus.SUSPENDED,
+        )
+
+
+    @admin.action(description="Deactivate selected accounts")
+    def deactivate_accounts(self, request, queryset):
+        self._change_account_status(
+            request,
+            queryset,
+            User.AccountStatus.DEACTIVATED,
+        )
 
 @admin.register(InstructorProfile)
 class InstructorProfileAdmin(admin.ModelAdmin):
@@ -148,3 +228,8 @@ class LearnerProfileAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+
+admin.site.site_header = "SkillHub Administration"
+admin.site.site_title = "SkillHub Admin"
+admin.site.index_title = "Platform Management"

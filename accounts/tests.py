@@ -720,3 +720,122 @@ class LearnerProfileTests(TestCase):
         self.assertTrue(
             bool(self.profile.profile_picture)
         )
+
+class UserManagementAdminTests(TestCase):
+    """Tests for US-21 administrator user management."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.admin_user = User.objects.create_superuser(
+            email="account.admin@example.com",
+            password=self.password,
+        )
+
+        self.learner = User.objects.create_user(
+            email="managed.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.changelist_url = reverse(
+            "admin:accounts_user_changelist"
+        )
+
+        self.client.force_login(self.admin_user)
+
+    def run_admin_action(self, action_name):
+        return self.client.post(
+            self.changelist_url,
+            {
+                "action": action_name,
+                "_selected_action": [
+                    str(self.learner.pk)
+                ],
+                "select_across": "0",
+                "index": "0",
+            },
+            follow=True,
+        )
+
+    def test_administrator_can_view_user_list(self):
+        response = self.client.get(
+            self.changelist_url
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertContains(
+            response,
+            "managed.learner@example.com",
+        )
+
+    def test_administrator_can_suspend_account(self):
+        response = self.run_admin_action(
+            "suspend_accounts"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.learner.refresh_from_db()
+
+        self.assertEqual(
+            self.learner.account_status,
+            User.AccountStatus.SUSPENDED,
+        )
+
+        self.assertFalse(self.learner.is_active)
+
+    def test_administrator_can_activate_account(self):
+        self.learner.account_status = (
+            User.AccountStatus.SUSPENDED
+        )
+        self.learner.save()
+
+        self.run_admin_action(
+            "activate_accounts"
+        )
+
+        self.learner.refresh_from_db()
+
+        self.assertEqual(
+            self.learner.account_status,
+            User.AccountStatus.ACTIVE,
+        )
+
+        self.assertTrue(self.learner.is_active)
+
+    def test_administrator_can_deactivate_account(self):
+        self.run_admin_action(
+            "deactivate_accounts"
+        )
+
+        self.learner.refresh_from_db()
+
+        self.assertEqual(
+            self.learner.account_status,
+            User.AccountStatus.DEACTIVATED,
+        )
+
+        self.assertFalse(self.learner.is_active)
+
+    def test_administrator_cannot_deactivate_self(self):
+        response = self.client.post(
+            self.changelist_url,
+            {
+                "action": "deactivate_accounts",
+                "_selected_action": [
+                    str(self.admin_user.pk)
+                ],
+                "select_across": "0",
+                "index": "0",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.admin_user.refresh_from_db()
+
+        self.assertTrue(self.admin_user.is_active)
+        self.assertTrue(self.admin_user.is_superuser)
