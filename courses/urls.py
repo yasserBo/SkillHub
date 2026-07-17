@@ -16,4 +16,9 @@ urlpatterns = [
         views.course_create,
         name="course_create",
     ),
+    path(
+        "instructor/<int:course_id>/submit/",
+        views.course_submit,
+        name="course_submit",
+    ),
 ]

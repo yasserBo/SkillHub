@@ -7,8 +7,7 @@ My Courses | SkillHub
 {% block content %}
 <div class="container py-5">
 
-    <div class="d-flex justify-content-between
-                align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="fw-bold mb-1">
                 My Courses
@@ -20,23 +19,40 @@ My Courses | SkillHub
         </div>
 
         <a href="{% url 'courses:course_create' %}" class="btn btn-primary">
-            Create course
+            Add new course
         </a>
     </div>
 
     {% if courses %}
     <div class="row g-4">
+
         {% for course in courses %}
         <div class="col-md-6 col-lg-4">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
+                <div class="card-body d-flex flex-column">
 
-                    <div class="d-flex
-                                        justify-content-between
-                                        align-items-start mb-3">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+
+                        {% if course.status == "DRAFT" %}
                         <span class="badge text-bg-secondary">
                             {{ course.get_status_display }}
                         </span>
+
+                        {% elif course.status == "SUBMITTED" %}
+                        <span class="badge text-bg-info">
+                            {{ course.get_status_display }}
+                        </span>
+
+                        {% elif course.status == "APPROVED" %}
+                        <span class="badge text-bg-success">
+                            {{ course.get_status_display }}
+                        </span>
+
+                        {% elif course.status == "REJECTED" %}
+                        <span class="badge text-bg-danger">
+                            {{ course.get_status_display }}
+                        </span>
+                        {% endif %}
 
                         <span class="text-secondary small">
                             {{ course.get_level_display }}
@@ -56,7 +72,7 @@ My Courses | SkillHub
                         {{ course.category.name }}
                     </p>
 
-                    <p class="mb-0">
+                    <p class="mb-1">
                         <strong>Price:</strong>
 
                         {% if course.is_free %}
@@ -66,14 +82,69 @@ My Courses | SkillHub
                         {% endif %}
                     </p>
 
+                    <p class="mb-3">
+                        <strong>Created:</strong>
+                        {{ course.created_at|date:"d M Y" }}
+                    </p>
+
+                    <div class="mt-auto">
+
+                        {% if course.status == "DRAFT" %}
+
+                        <form method="post" action="{% url 'courses:course_submit' course.pk %}">
+                            {% csrf_token %}
+
+                            <button type="submit" class="btn btn-primary w-100">
+                                Submit for approval
+                            </button>
+                        </form>
+
+                        {% elif course.status == "REJECTED" %}
+
+                        <div class="alert alert-danger small">
+                            <strong>Rejection reason:</strong>
+
+                            <br>
+
+                            {{ course.rejection_reason|default:"No rejection reason was provided." }}
+                        </div>
+
+                        <form method="post" action="{% url 'courses:course_submit' course.pk %}">
+                            {% csrf_token %}
+
+                            <button type="submit" class="btn btn-warning w-100">
+                                Resubmit for approval
+                            </button>
+                        </form>
+
+                        {% elif course.status == "SUBMITTED" %}
+
+                        <div class="alert alert-info small mb-0">
+                            Waiting for administrator review.
+                        </div>
+
+                        {% elif course.status == "APPROVED" %}
+
+                        <div class="alert alert-success small mb-0">
+                            This course has been approved.
+                        </div>
+
+                        {% endif %}
+
+                    </div>
+
                 </div>
             </div>
         </div>
         {% endfor %}
+
     </div>
+
     {% else %}
+
     <div class="card border-0 shadow-sm">
         <div class="card-body text-center py-5">
+
             <h2 class="h4">
                 No courses yet
             </h2>
@@ -83,10 +154,12 @@ My Courses | SkillHub
             </p>
 
             <a href="{% url 'courses:course_create' %}" class="btn btn-primary">
-                Create course
+                Add new course
             </a>
+
         </div>
     </div>
+
     {% endif %}
 
 </div>

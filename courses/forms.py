@@ -102,3 +102,32 @@ class CourseCreationForm(forms.ModelForm):
             )
 
         return "\n".join(objective_lines)
+    
+class CourseAdminReviewForm(forms.ModelForm):
+    """Validate course approval and rejection in Django Admin."""
+
+    class Meta:
+        model = Course
+        fields = "__all__"
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        status = cleaned_data.get("status")
+        rejection_reason = (
+            cleaned_data.get("rejection_reason") or ""
+        ).strip()
+
+        if (
+            status == Course.Status.REJECTED
+            and not rejection_reason
+        ):
+            self.add_error(
+                "rejection_reason",
+                "A rejection reason is required.",
+            )
+
+        if status != Course.Status.REJECTED:
+            cleaned_data["rejection_reason"] = ""
+
+        return cleaned_data

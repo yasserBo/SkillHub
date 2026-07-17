@@ -1,8 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, render
-
+from django.shortcuts import get_object_or_404, redirect, render
 from accounts.models import User
+from django.views.decorators.http import require_POST
 
 from .forms import CourseCreationForm
 from .models import Course
@@ -64,4 +64,53 @@ def course_create(request):
         {
             "form": form,
         },
+    )
+
+@login_required
+@require_POST
+def course_submit(request, course_id):
+    """Submit an instructor's course for administrator review."""
+
+    if request.user.role != User.Role.INSTRUCTOR:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course,
+        pk=course_id,
+        instructor=request.user,
+    )
+
+    allowed_statuses = {
+        Course.Status.DRAFT,
+        Course.Status.REJECTED,
+    }
+
+    if course.status not in allowed_statuses:
+        messages.warning(
+            request,
+            "This course has already been submitted or approved.",
+        )
+
+        return redirect(
+            "courses:instructor_course_list"
+        )
+
+    course.status = Course.Status.SUBMITTED
+    course.rejection_reason = ""
+
+    course.save(
+        update_fields=[
+            "status",
+            "rejection_reason",
+            "updated_at",
+        ]
+    )
+
+    messages.success(
+        request,
+        "Your course was submitted for administrator review.",
+    )
+
+    return redirect(
+        "courses:instructor_course_list"
     )

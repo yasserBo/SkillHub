@@ -1,5 +1,6 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 
+from .forms import CourseAdminReviewForm
 from .models import Category, Course
 
 
@@ -17,6 +18,8 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
+    form = CourseAdminReviewForm
+
     list_display = (
         "title",
         "instructor",
@@ -44,3 +47,90 @@ class CourseAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+    actions = (
+        "approve_submitted_courses",
+        "reject_submitted_courses",
+    )
+
+    @admin.action(
+        description="Approve selected submitted courses"
+    )
+    def approve_submitted_courses(
+        self,
+        request,
+        queryset,
+    ):
+        submitted_courses = queryset.filter(
+            status=Course.Status.SUBMITTED
+        )
+
+        updated_count = submitted_courses.update(
+            status=Course.Status.APPROVED,
+            rejection_reason="",
+        )
+
+        skipped_count = queryset.count() - updated_count
+
+        if updated_count:
+            self.message_user(
+                request,
+                (
+                    f"{updated_count} course(s) "
+                    "approved successfully."
+                ),
+                level=messages.SUCCESS,
+            )
+
+        if skipped_count:
+            self.message_user(
+                request,
+                (
+                    f"{skipped_count} course(s) were skipped "
+                    "because they were not submitted."
+                ),
+                level=messages.WARNING,
+            )
+
+    @admin.action(
+        description="Reject selected submitted courses"
+    )
+    def reject_submitted_courses(
+        self,
+        request,
+        queryset,
+    ):
+        submitted_courses = queryset.filter(
+            status=Course.Status.SUBMITTED
+        )
+
+        updated_count = submitted_courses.update(
+            status=Course.Status.REJECTED,
+            rejection_reason=(
+                "The course was rejected by an administrator. "
+                "Please review the course information before "
+                "submitting it again."
+            ),
+        )
+
+        skipped_count = queryset.count() - updated_count
+
+        if updated_count:
+            self.message_user(
+                request,
+                (
+                    f"{updated_count} course(s) "
+                    "rejected successfully."
+                ),
+                level=messages.SUCCESS,
+            )
+
+        if skipped_count:
+            self.message_user(
+                request,
+                (
+                    f"{skipped_count} course(s) were skipped "
+                    "because they were not submitted."
+                ),
+                level=messages.WARNING,
+            )
