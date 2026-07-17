@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # SkillHub applications
     "accounts",
+    "courses",
+
 ]
 
 MIDDLEWARE = [

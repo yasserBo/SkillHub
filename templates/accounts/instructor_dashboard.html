@@ -20,9 +20,18 @@ Instructor Dashboard | SkillHub
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <h2 class="h5">My Courses</h2>
-                    <p class="text-secondary mb-0">
-                        Your created courses will appear here.
+
+                    <p class="text-secondary">
+                        Create and manage your SkillHub courses.
                     </p>
+
+                    <a href="{% url 'courses:instructor_course_list' %}" class="btn btn-outline-primary">
+                        Manage my courses
+                    </a>
+
+                    <a href="{% url 'courses:course_create' %}" class="btn btn-primary mt-2">
+                        Add new course
+                    </a>
                 </div>
             </div>
         </div>
