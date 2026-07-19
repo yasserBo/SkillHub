@@ -48,6 +48,10 @@
                 SkillHub
             </a>
 
+            <a class="nav-link ms-3" href="{% url 'courses:course_catalog' %}">
+                Browse Courses
+            </a>
+
             <div class="ms-auto d-flex align-items-center gap-2">
                 {% if request.user.is_authenticated %}
 

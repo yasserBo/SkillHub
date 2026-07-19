@@ -7,6 +7,11 @@ app_name = "courses"
 
 urlpatterns = [
     path(
+        "",
+        views.course_catalog,
+        name="course_catalog",
+    ),
+    path(
         "instructor/",
         views.instructor_course_list,
         name="instructor_course_list",

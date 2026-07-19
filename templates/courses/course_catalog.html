@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}
+Browse Courses | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <div class="text-center mb-5">
+        <h1 class="fw-bold">
+            Explore SkillHub Courses
+        </h1>
+
+        <p class="text-secondary">
+            Discover approved courses and start developing new skills.
+        </p>
+    </div>
+
+    {% if page_obj %}
+    <div class="row g-4">
+
+        {% for course in page_obj %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex flex-column">
+
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="badge text-bg-primary">
+                            {{ course.category.name }}
+                        </span>
+
+                        <span class="badge text-bg-light">
+                            {{ course.get_level_display }}
+                        </span>
+                    </div>
+
+                    <h2 class="h5 fw-bold">
+                        {{ course.title }}
+                    </h2>
+
+                    <p class="text-secondary">
+                        {{ course.description|truncatewords:25 }}
+                    </p>
+
+                    <div class="mt-auto">
+
+                        <p class="small mb-1">
+                            <strong>Instructor:</strong>
+
+                            {% if course.instructor.get_full_name %}
+                            {{ course.instructor.get_full_name }}
+                            {% else %}
+                            {{ course.instructor.email }}
+                            {% endif %}
+                        </p>
+
+                        <p class="small mb-3">
+                            <strong>Level:</strong>
+                            {{ course.get_level_display }}
+                        </p>
+
+                        <div class="d-flex justify-content-between
+                                            align-items-center">
+
+                            <span class="fw-bold text-primary">
+                                {% if course.is_free %}
+                                Free
+                                {% else %}
+                                €{{ course.price }}
+                                {% endif %}
+                            </span>
+
+                            <span class="badge text-bg-success">
+                                Approved
+                            </span>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-5" aria-label="Course pages">
+        <ul class="pagination justify-content-center">
+
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                    Previous
+                </a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">
+                    Previous
+                </span>
+            </li>
+            {% endif %}
+
+            {% for page_number in page_obj.paginator.page_range %}
+            {% if page_number == page_obj.number %}
+            <li class="page-item active">
+                <span class="page-link">
+                    {{ page_number }}
+                </span>
+            </li>
+            {% else %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_number }}">
+                    {{ page_number }}
+                </a>
+            </li>
+            {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                    Next
+                </a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">
+                    Next
+                </span>
+            </li>
+            {% endif %}
+
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+
+            <h2 class="h4">
+                No courses are available yet
+            </h2>
+
+            <p class="text-secondary mb-0">
+                Approved courses will appear here.
+            </p>
+
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

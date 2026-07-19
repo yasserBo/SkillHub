@@ -430,3 +430,175 @@ class CourseApprovalTests(TestCase):
             "rejection_reason",
             form.errors,
         )
+
+class CourseCatalogTests(TestCase):
+    """Tests for US-04 browsing available courses."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="catalog.instructor@example.com",
+            password=self.password,
+            first_name="Course",
+            last_name="Instructor",
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.category = Category.objects.create(
+            name="Data Science",
+        )
+
+        self.approved_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Approved Python Course",
+            description=(
+                "An approved course that learners should see."
+            ),
+            level=Course.Level.BEGINNER,
+            price="19.99",
+            learning_objectives="Learn Python",
+            status=Course.Status.APPROVED,
+        )
+
+        self.draft_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Hidden Draft Course",
+            description="This draft should remain hidden.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            learning_objectives="Draft objective",
+            status=Course.Status.DRAFT,
+        )
+
+        self.submitted_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Hidden Submitted Course",
+            description="This submitted course should remain hidden.",
+            level=Course.Level.INTERMEDIATE,
+            price="10.00",
+            learning_objectives="Submitted objective",
+            status=Course.Status.SUBMITTED,
+        )
+
+        self.rejected_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Hidden Rejected Course",
+            description="This rejected course should remain hidden.",
+            level=Course.Level.ADVANCED,
+            price="25.00",
+            learning_objectives="Rejected objective",
+            status=Course.Status.REJECTED,
+            rejection_reason="More detail is required.",
+        )
+
+        self.catalog_url = reverse(
+            "courses:course_catalog"
+        )
+
+    def test_catalog_page_opens(self):
+        response = self.client.get(
+            self.catalog_url
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertTemplateUsed(
+            response,
+            "courses/course_catalog.html",
+        )
+
+    def test_approved_course_is_displayed(self):
+        response = self.client.get(
+            self.catalog_url
+        )
+
+        self.assertContains(
+            response,
+            "Approved Python Course",
+        )
+
+    def test_draft_course_is_hidden(self):
+        response = self.client.get(
+            self.catalog_url
+        )
+
+        self.assertNotContains(
+            response,
+            "Hidden Draft Course",
+        )
+
+    def test_submitted_course_is_hidden(self):
+        response = self.client.get(
+            self.catalog_url
+        )
+
+        self.assertNotContains(
+            response,
+            "Hidden Submitted Course",
+        )
+
+    def test_rejected_course_is_hidden(self):
+        response = self.client.get(
+            self.catalog_url
+        )
+
+        self.assertNotContains(
+            response,
+            "Hidden Rejected Course",
+        )
+
+    def test_catalog_displays_course_information(self):
+        response = self.client.get(
+            self.catalog_url
+        )
+
+        self.assertContains(
+            response,
+            "Data Science",
+        )
+
+        self.assertContains(
+            response,
+            "Beginner",
+        )
+
+        self.assertContains(
+            response,
+            "€19.99",
+        )
+
+        self.assertContains(
+            response,
+            "Course Instructor",
+        )
+
+    def test_catalog_uses_pagination(self):
+        for number in range(10):
+            Course.objects.create(
+                instructor=self.instructor,
+                category=self.category,
+                title=f"Approved Course {number}",
+                description="Approved catalog course.",
+                level=Course.Level.BEGINNER,
+                price="0.00",
+                learning_objectives="Learn a topic",
+                status=Course.Status.APPROVED,
+            )
+
+        response = self.client.get(
+            self.catalog_url
+        )
+
+        self.assertTrue(
+            response.context["page_obj"].has_next()
+        )
+
+        self.assertEqual(
+            len(response.context["page_obj"]),
+            9,
+        )

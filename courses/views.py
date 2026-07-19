@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from accounts.models import User
 from django.views.decorators.http import require_POST
+from django.core.paginator import Paginator
 
 from .forms import CourseCreationForm
 from .models import Course
@@ -113,4 +114,30 @@ def course_submit(request, course_id):
 
     return redirect(
         "courses:instructor_course_list"
+    )
+
+def course_catalog(request):
+    """Display approved SkillHub courses."""
+
+    approved_courses = (
+        Course.objects
+        .filter(status=Course.Status.APPROVED)
+        .select_related("category", "instructor")
+        .order_by("-created_at")
+    )
+
+    paginator = Paginator(
+        approved_courses,
+        9,
+    )
+
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    return render(
+        request,
+        "courses/course_catalog.html",
+        {
+            "page_obj": page_obj,
+        },
     )
