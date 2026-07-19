@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ course.title }} | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <div class="mb-4">
+        <a href="{% url 'courses:course_catalog' %}" class="text-decoration-none">
+            ← Back to courses
+        </a>
+    </div>
+
+    <div class="row g-4">
+
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 p-md-5">
+
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <span class="badge text-bg-primary">
+                            {{ course.category.name }}
+                        </span>
+
+                        <span class="badge text-bg-secondary">
+                            {{ course.get_level_display }}
+                        </span>
+
+                        <span class="badge text-bg-success">
+                            Approved
+                        </span>
+                    </div>
+
+                    <h1 class="fw-bold mb-3">
+                        {{ course.title }}
+                    </h1>
+
+                    <p class="lead text-secondary">
+                        {{ course.description }}
+                    </p>
+
+                    <hr class="my-4">
+
+                    <h2 class="h4 fw-bold mb-3">
+                        What you will learn
+                    </h2>
+
+                    {% if learning_objectives %}
+                    <ul class="list-group list-group-flush mb-4">
+                        {% for objective in learning_objectives %}
+                        <li class="list-group-item px-0">
+                            ✓ {{ objective }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-secondary">
+                        No learning objectives have been provided.
+                    </p>
+                    {% endif %}
+
+                    <h2 class="h4 fw-bold mb-3">
+                        Course description
+                    </h2>
+
+                    <div class="text-secondary">
+                        {{ course.description|linebreaks }}
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+
+                    <div class="mb-4">
+                        <span class="text-secondary small">
+                            Course price
+                        </span>
+
+                        <div class="display-6 fw-bold text-primary">
+                            {% if course.is_free %}
+                            Free
+                            {% else %}
+                            €{{ course.price }}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <dl class="row mb-0">
+                        <dt class="col-5">
+                            Instructor
+                        </dt>
+
+                        <dd class="col-7">
+                            {% if course.instructor.get_full_name %}
+                            {{ course.instructor.get_full_name }}
+                            {% else %}
+                            {{ course.instructor.email }}
+                            {% endif %}
+                        </dd>
+
+                        <dt class="col-5">
+                            Category
+                        </dt>
+
+                        <dd class="col-7">
+                            {{ course.category.name }}
+                        </dd>
+
+                        <dt class="col-5">
+                            Level
+                        </dt>
+
+                        <dd class="col-7">
+                            {{ course.get_level_display }}
+                        </dd>
+
+                        <dt class="col-5">
+                            Duration
+                        </dt>
+
+                        <dd class="col-7">
+                            {{ course.duration_display }}
+                        </dd>
+
+                        <dt class="col-5">
+                            Rating
+                        </dt>
+
+                        <dd class="col-7">
+                            Not rated yet
+                        </dd>
+                    </dl>
+
+                    <hr>
+
+                    <p class="small text-secondary mb-0">
+                        Enrollment will be added in a later user story.
+                    </p>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

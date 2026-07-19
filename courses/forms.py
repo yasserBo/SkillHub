@@ -16,6 +16,7 @@ class CourseCreationForm(forms.ModelForm):
             "description",
             "level",
             "price",
+            "duration_minutes",
             "learning_objectives",
         )
 
@@ -51,6 +52,14 @@ class CourseCreationForm(forms.ModelForm):
                     "placeholder": "0.00",
                 }
             ),
+            "duration_minutes": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": "1",
+                    "placeholder": "For example: 120",
+                }
+            ),
+
             "learning_objectives": forms.Textarea(
                 attrs={
                     "class": "form-control",

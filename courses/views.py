@@ -141,3 +141,30 @@ def course_catalog(request):
             "page_obj": page_obj,
         },
     )
+
+def course_detail(request, course_id):
+    """Display the full details of an approved course."""
+
+    course = get_object_or_404(
+        Course.objects.select_related(
+            "category",
+            "instructor",
+        ),
+        pk=course_id,
+        status=Course.Status.APPROVED,
+    )
+
+    learning_objectives = [
+        objective.strip()
+        for objective in course.learning_objectives.splitlines()
+        if objective.strip()
+    ]
+
+    return render(
+        request,
+        "courses/course_detail.html",
+        {
+            "course": course,
+            "learning_objectives": learning_objectives,
+        },
+    )

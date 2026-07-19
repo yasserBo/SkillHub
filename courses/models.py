@@ -68,6 +68,12 @@ class Course(models.Model):
         validators=[MinValueValidator(0)],
     )
 
+    duration_minutes = models.PositiveIntegerField(
+        default=60,
+        validators=[MinValueValidator(1)],
+        help_text="Estimated course duration in minutes.",
+    )
+
     learning_objectives = models.TextField(
         help_text="Enter one learning objective per line.",
     )
@@ -99,3 +105,19 @@ class Course(models.Model):
     @property
     def is_free(self):
         return self.price == 0
+    
+    @property
+    def duration_display(self):
+        """Return the course duration in a readable format."""
+
+        hours, minutes = divmod(self.duration_minutes, 60)
+
+        if hours and minutes:
+            return f"{hours} hr {minutes} min"
+
+        if hours:
+            unit = "hr" if hours == 1 else "hrs"
+            return f"{hours} {unit}"
+
+        return f"{minutes} min"
+    

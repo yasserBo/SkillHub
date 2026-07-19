@@ -51,6 +51,7 @@ class CourseCreationTests(TestCase):
             ),
             "level": Course.Level.BEGINNER,
             "price": "29.99",
+            "duration_minutes": "120",
             "learning_objectives": (
                 "Understand Python syntax\n"
                 "Use variables and data types\n"
@@ -601,4 +602,150 @@ class CourseCatalogTests(TestCase):
         self.assertEqual(
             len(response.context["page_obj"]),
             9,
+        )
+
+class CourseDetailTests(TestCase):
+    """Tests for US-07 course details."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="details.instructor@example.com",
+            password=self.password,
+            first_name="Yasser",
+            last_name="Instructor",
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.category = Category.objects.create(
+            name="Programming",
+        )
+
+        self.approved_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Complete Django Course",
+            description=(
+                "Learn Django by developing complete "
+                "web applications."
+            ),
+            level=Course.Level.INTERMEDIATE,
+            price="39.99",
+            duration_minutes=150,
+            learning_objectives=(
+                "Understand Django models\n"
+                "Create views and templates\n"
+                "Build secure authentication"
+            ),
+            status=Course.Status.APPROVED,
+        )
+
+        self.draft_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Hidden Draft Details",
+            description="This course is still a draft.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            duration_minutes=60,
+            learning_objectives="Learn a draft topic",
+            status=Course.Status.DRAFT,
+        )
+
+        self.detail_url = reverse(
+            "courses:course_detail",
+            args=[self.approved_course.pk],
+        )
+
+    def test_approved_course_detail_page_opens(self):
+        response = self.client.get(
+            self.detail_url
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertTemplateUsed(
+            response,
+            "courses/course_detail.html",
+        )
+
+    def test_course_details_are_displayed(self):
+        response = self.client.get(
+            self.detail_url
+        )
+
+        self.assertContains(
+            response,
+            "Complete Django Course",
+        )
+
+        self.assertContains(
+            response,
+            "Yasser Instructor",
+        )
+
+        self.assertContains(
+            response,
+            "Programming",
+        )
+
+        self.assertContains(
+            response,
+            "Intermediate",
+        )
+
+        self.assertContains(
+            response,
+            "€39.99",
+        )
+
+        self.assertContains(
+            response,
+            "2 hr 30 min",
+        )
+
+        self.assertContains(
+            response,
+            "Understand Django models",
+        )
+
+    def test_draft_course_detail_is_hidden(self):
+        hidden_url = reverse(
+            "courses:course_detail",
+            args=[self.draft_course.pk],
+        )
+
+        response = self.client.get(
+            hidden_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+    def test_nonexistent_course_returns_404(self):
+        missing_url = reverse(
+            "courses:course_detail",
+            args=[99999],
+        )
+
+        response = self.client.get(
+            missing_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+    def test_catalog_links_to_course_details(self):
+        response = self.client.get(
+            reverse("courses:course_catalog")
+        )
+
+        self.assertContains(
+            response,
+            self.detail_url,
         )

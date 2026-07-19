@@ -61,7 +61,7 @@ Browse Courses | SkillHub
                         </p>
 
                         <div class="d-flex justify-content-between
-                                            align-items-center">
+            align-items-center mb-3">
 
                             <span class="fw-bold text-primary">
                                 {% if course.is_free %}
@@ -75,6 +75,10 @@ Browse Courses | SkillHub
                                 Approved
                             </span>
                         </div>
+
+                        <a href="{% url 'courses:course_detail' course.pk %}" class="btn btn-outline-primary w-100">
+                            View details
+                        </a>
 
                     </div>
 
