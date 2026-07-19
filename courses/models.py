@@ -1,7 +1,17 @@
 from django.conf import settings
-from django.core.validators import MinValueValidator
 from django.db import models
+from django.core.validators import (
+    FileExtensionValidator,
+    MinValueValidator,
+)
 
+def course_video_upload_path(instance, filename):
+    """Store course videos in folders organized by course and section."""
+
+    return (
+        f"courses/{instance.section.course_id}/"
+        f"sections/{instance.section_id}/{filename}"
+    )
 
 class Category(models.Model):
     """Category used to organize SkillHub courses."""
@@ -121,3 +131,104 @@ class Course(models.Model):
 
         return f"{minutes} min"
     
+class CourseSection(models.Model):
+    """A section used to organize lessons inside a course."""
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="sections",
+    )
+
+    title = models.CharField(
+        max_length=200,
+    )
+
+    order = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ("order", "id")
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=("course", "order"),
+                name="unique_section_order_per_course",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.course.title} - {self.title}"
+
+
+class VideoLesson(models.Model):
+    """A video lesson belonging to a course section."""
+
+    section = models.ForeignKey(
+        CourseSection,
+        on_delete=models.CASCADE,
+        related_name="lessons",
+    )
+
+    title = models.CharField(
+        max_length=200,
+    )
+
+    video_file = models.FileField(
+        upload_to=course_video_upload_path,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=[
+                    "mp4",
+                    "webm",
+                    "mov",
+                    "m4v",
+                ]
+            )
+        ],
+    )
+
+    order = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+    )
+
+    duration_minutes = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+    )
+
+    is_preview = models.BooleanField(
+        default=False,
+        help_text=(
+            "Allow visitors to preview this lesson "
+            "without enrolling."
+        ),
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = ("order", "id")
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=("section", "order"),
+                name="unique_lesson_order_per_section",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.section.title} - {self.title}"

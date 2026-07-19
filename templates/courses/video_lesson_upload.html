@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}
+Upload Video Lesson | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 p-md-5">
+
+                    <h1 class="h3 fw-bold">
+                        Upload video lesson
+                    </h1>
+
+                    <p class="text-secondary">
+                        Course: {{ course.title }}
+                    </p>
+
+                    <div class="alert alert-info small">
+                        Supported formats: MP4, WebM, MOV and M4V.
+                        Maximum size: 200 MB.
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data" novalidate>
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% for field in form %}
+                        <div class="mb-3">
+                            {% if field.name == "is_preview" %}
+                            <div class="form-check">
+                                {{ field }}
+
+                                <label for="{{ field.id_for_label }}" class="form-check-label">
+                                    {{ field.label }}
+                                </label>
+                            </div>
+                            {% else %}
+                            <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
+                                {{ field.label }}
+                            </label>
+
+                            {{ field }}
+                            {% endif %}
+
+                            {% if field.help_text %}
+                            <div class="form-text">
+                                {{ field.help_text }}
+                            </div>
+                            {% endif %}
+
+                            {% for error in field.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+
+                        <button type="submit" class="btn btn-primary">
+                            Upload lesson
+                        </button>
+
+                        <a href="{% url 'courses:course_content_manage' course.pk %}" class="btn btn-outline-secondary">
+                            Cancel
+                        </a>
+                    </form>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

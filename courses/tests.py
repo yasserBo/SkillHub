@@ -2,9 +2,18 @@ from django.test import TestCase
 from django.urls import reverse
 from .forms import CourseAdminReviewForm
 from accounts.models import User
+import shutil
+import tempfile
 
-from .models import Category, Course
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 
+from .models import (
+    Category,
+    Course,
+    CourseSection,
+    VideoLesson,
+)
 
 class CourseCreationTests(TestCase):
     """Tests for US-15 instructor course creation."""
@@ -748,4 +757,251 @@ class CourseDetailTests(TestCase):
         self.assertContains(
             response,
             self.detail_url,
+        )
+
+TEST_VIDEO_MEDIA_ROOT = tempfile.mkdtemp()
+
+
+@override_settings(MEDIA_ROOT=TEST_VIDEO_MEDIA_ROOT)
+class CourseVideoUploadTests(TestCase):
+    """Tests for US-16 course video uploads."""
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(
+            TEST_VIDEO_MEDIA_ROOT,
+            ignore_errors=True,
+        )
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="video.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.other_instructor = User.objects.create_user(
+            email="video.other@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner = User.objects.create_user(
+            email="video.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.category = Category.objects.create(
+            name="Video Programming",
+        )
+
+        self.course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Python Video Course",
+            description="A course containing video lessons.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            duration_minutes=120,
+            learning_objectives="Learn Python",
+            status=Course.Status.DRAFT,
+        )
+
+        self.other_course = Course.objects.create(
+            instructor=self.other_instructor,
+            category=self.category,
+            title="Other Instructor Course",
+            description="Another instructor's course.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            duration_minutes=60,
+            learning_objectives="Learn another subject",
+            status=Course.Status.DRAFT,
+        )
+
+        self.section = CourseSection.objects.create(
+            course=self.course,
+            title="Python Basics",
+            order=1,
+        )
+
+        self.content_url = reverse(
+            "courses:course_content_manage",
+            args=[self.course.pk],
+        )
+
+        self.section_url = reverse(
+            "courses:course_section_create",
+            args=[self.course.pk],
+        )
+
+        self.upload_url = reverse(
+            "courses:video_lesson_upload",
+            args=[self.course.pk],
+        )
+
+    def create_video_file(
+        self,
+        name="lesson.mp4",
+    ):
+        return SimpleUploadedFile(
+            name=name,
+            content=b"fake video file content",
+            content_type="video/mp4",
+        )
+
+    def test_instructor_can_open_course_content_page(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(
+            self.content_url
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertTemplateUsed(
+            response,
+            "courses/course_content_manage.html",
+        )
+
+    def test_learner_cannot_manage_course_content(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.get(
+            self.content_url
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:dashboard"),
+            fetch_redirect_response=False,
+        )
+
+    def test_instructor_cannot_manage_another_course(self):
+        self.client.force_login(self.instructor)
+
+        other_url = reverse(
+            "courses:course_content_manage",
+            args=[self.other_course.pk],
+        )
+
+        response = self.client.get(other_url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_instructor_can_create_section(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.post(
+            self.section_url,
+            {
+                "title": "Control Flow",
+                "order": 2,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.content_url,
+        )
+
+        self.assertTrue(
+            CourseSection.objects.filter(
+                course=self.course,
+                title="Control Flow",
+                order=2,
+            ).exists()
+        )
+
+    def test_instructor_can_upload_video_lesson(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.post(
+            self.upload_url,
+            {
+                "section": self.section.pk,
+                "title": "Installing Python",
+                "video_file": self.create_video_file(),
+                "order": 1,
+                "duration_minutes": 10,
+                "is_preview": "on",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.content_url,
+        )
+
+        lesson = VideoLesson.objects.get(
+            title="Installing Python"
+        )
+
+        self.assertEqual(
+            lesson.section,
+            self.section,
+        )
+
+        self.assertTrue(lesson.is_preview)
+        self.assertTrue(bool(lesson.video_file))
+
+    def test_invalid_video_extension_is_rejected(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.post(
+            self.upload_url,
+            {
+                "section": self.section.pk,
+                "title": "Invalid Lesson",
+                "video_file": self.create_video_file(
+                    name="malicious.exe"
+                ),
+                "order": 1,
+                "duration_minutes": 10,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(VideoLesson.objects.exists())
+
+    def test_duplicate_lesson_order_is_rejected(self):
+        VideoLesson.objects.create(
+            section=self.section,
+            title="Existing Lesson",
+            video_file=self.create_video_file(
+                name="existing.mp4"
+            ),
+            order=1,
+            duration_minutes=10,
+        )
+
+        self.client.force_login(self.instructor)
+
+        response = self.client.post(
+            self.upload_url,
+            {
+                "section": self.section.pk,
+                "title": "Duplicate Order Lesson",
+                "video_file": self.create_video_file(
+                    name="duplicate.mp4"
+                ),
+                "order": 1,
+                "duration_minutes": 15,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertContains(
+            response,
+            "Another lesson already uses this order number.",
+        )
+
+        self.assertEqual(
+            VideoLesson.objects.count(),
+            1,
         )

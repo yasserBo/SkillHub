@@ -27,6 +27,21 @@ urlpatterns = [
         name="course_create",
     ),
     path(
+        "instructor/<int:course_id>/content/",
+        views.course_content_manage,
+        name="course_content_manage",
+    ),
+    path(
+        "instructor/<int:course_id>/content/sections/add/",
+        views.course_section_create,
+        name="course_section_create",
+    ),
+    path(
+        "instructor/<int:course_id>/content/videos/upload/",
+        views.video_lesson_upload,
+        name="video_lesson_upload",
+    ),
+    path(
         "instructor/<int:course_id>/submit/",
         views.course_submit,
         name="course_submit",

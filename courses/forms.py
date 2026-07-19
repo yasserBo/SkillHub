@@ -2,8 +2,7 @@ from decimal import Decimal
 
 from django import forms
 
-from .models import Course
-
+from .models import Course, CourseSection, VideoLesson
 
 class CourseCreationForm(forms.ModelForm):
     """Form used by instructors to create draft courses."""
@@ -138,5 +137,186 @@ class CourseAdminReviewForm(forms.ModelForm):
 
         if status != Course.Status.REJECTED:
             cleaned_data["rejection_reason"] = ""
+
+        return cleaned_data
+    
+class CourseSectionForm(forms.ModelForm):
+    """Allow an instructor to add a section to a course."""
+
+    class Meta:
+        model = CourseSection
+        fields = (
+            "title",
+            "order",
+        )
+
+        widgets = {
+            "title": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "For example: Python Basics",
+                }
+            ),
+            "order": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": "1",
+                }
+            ),
+        }
+
+    def __init__(self, *args, course, **kwargs):
+        self.course = course
+        super().__init__(*args, **kwargs)
+
+    def clean_title(self):
+        title = self.cleaned_data["title"].strip()
+
+        if len(title) < 3:
+            raise forms.ValidationError(
+                "The section title must contain at least 3 characters."
+            )
+
+        return title
+
+    def clean_order(self):
+        order = self.cleaned_data["order"]
+
+        duplicate_exists = CourseSection.objects.filter(
+            course=self.course,
+            order=order,
+        ).exists()
+
+        if duplicate_exists:
+            raise forms.ValidationError(
+                "Another section already uses this order number."
+            )
+
+        return order
+
+    def save(self, commit=True):
+        section = super().save(commit=False)
+        section.course = self.course
+
+        if commit:
+            section.save()
+
+        return section
+
+
+class VideoLessonUploadForm(forms.ModelForm):
+    """Allow instructors to upload and organize video lessons."""
+
+    maximum_file_size = 200 * 1024 * 1024
+
+    class Meta:
+        model = VideoLesson
+
+        fields = (
+            "section",
+            "title",
+            "video_file",
+            "order",
+            "duration_minutes",
+            "is_preview",
+        )
+
+        widgets = {
+            "section": forms.Select(
+                attrs={
+                    "class": "form-select",
+                }
+            ),
+            "title": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Enter the lesson title",
+                }
+            ),
+            "video_file": forms.ClearableFileInput(
+                attrs={
+                    "class": "form-control",
+                    "accept": (
+                        "video/mp4,video/webm,"
+                        "video/quicktime,video/x-m4v"
+                    ),
+                }
+            ),
+            "order": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": "1",
+                }
+            ),
+            "duration_minutes": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": "1",
+                    "placeholder": "For example: 15",
+                }
+            ),
+            "is_preview": forms.CheckboxInput(
+                attrs={
+                    "class": "form-check-input",
+                }
+            ),
+        }
+
+    def __init__(self, *args, course, **kwargs):
+        self.course = course
+        super().__init__(*args, **kwargs)
+
+        self.fields["section"].queryset = (
+            CourseSection.objects
+            .filter(course=course)
+            .order_by("order")
+        )
+
+    def clean_title(self):
+        title = self.cleaned_data["title"].strip()
+
+        if len(title) < 3:
+            raise forms.ValidationError(
+                "The lesson title must contain at least 3 characters."
+            )
+
+        return title
+
+    def clean_video_file(self):
+        video_file = self.cleaned_data.get("video_file")
+
+        if (
+            video_file
+            and video_file.size > self.maximum_file_size
+        ):
+            raise forms.ValidationError(
+                "The video file must be 200 MB or smaller."
+            )
+
+        return video_file
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        section = cleaned_data.get("section")
+        order = cleaned_data.get("order")
+
+        if section and section.course_id != self.course.pk:
+            self.add_error(
+                "section",
+                "The selected section does not belong to this course.",
+            )
+
+        if section and order:
+            duplicate_exists = VideoLesson.objects.filter(
+                section=section,
+                order=order,
+            ).exists()
+
+            if duplicate_exists:
+                self.add_error(
+                    "order",
+                    "Another lesson already uses this order number.",
+                )
 
         return cleaned_data

@@ -5,9 +5,12 @@ from accounts.models import User
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 
-from .forms import CourseCreationForm
-from .models import Course
-
+from .forms import (
+    CourseCreationForm,
+    CourseSectionForm,
+    VideoLessonUploadForm,
+)
+from .models import Course, CourseSection
 
 @login_required
 def instructor_course_list(request):
@@ -166,5 +169,174 @@ def course_detail(request, course_id):
         {
             "course": course,
             "learning_objectives": learning_objectives,
+        },
+    )
+
+@login_required
+def course_content_manage(request, course_id):
+    """Display and organize the instructor's course content."""
+
+    if request.user.role != User.Role.INSTRUCTOR:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course.objects.prefetch_related(
+            "sections__lessons"
+        ),
+        pk=course_id,
+        instructor=request.user,
+    )
+
+    content_editable = course.status in {
+        Course.Status.DRAFT,
+        Course.Status.REJECTED,
+    }
+
+    return render(
+        request,
+        "courses/course_content_manage.html",
+        {
+            "course": course,
+            "content_editable": content_editable,
+        },
+    )
+
+
+@login_required
+def course_section_create(request, course_id):
+    """Allow the course owner to create a content section."""
+
+    if request.user.role != User.Role.INSTRUCTOR:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course,
+        pk=course_id,
+        instructor=request.user,
+    )
+
+    if course.status not in {
+        Course.Status.DRAFT,
+        Course.Status.REJECTED,
+    }:
+        messages.warning(
+            request,
+            (
+                "Content cannot be changed while the course "
+                "is submitted or approved."
+            ),
+        )
+
+        return redirect(
+            "courses:course_content_manage",
+            course_id=course.pk,
+        )
+
+    if request.method == "POST":
+        form = CourseSectionForm(
+            request.POST,
+            course=course,
+        )
+
+        if form.is_valid():
+            form.save()
+
+            messages.success(
+                request,
+                "The course section was created successfully.",
+            )
+
+            return redirect(
+                "courses:course_content_manage",
+                course_id=course.pk,
+            )
+    else:
+        form = CourseSectionForm(
+            course=course,
+        )
+
+    return render(
+        request,
+        "courses/course_section_create.html",
+        {
+            "course": course,
+            "form": form,
+        },
+    )
+
+
+@login_required
+def video_lesson_upload(request, course_id):
+    """Allow the course owner to upload a video lesson."""
+
+    if request.user.role != User.Role.INSTRUCTOR:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course,
+        pk=course_id,
+        instructor=request.user,
+    )
+
+    if course.status not in {
+        Course.Status.DRAFT,
+        Course.Status.REJECTED,
+    }:
+        messages.warning(
+            request,
+            (
+                "Videos cannot be uploaded while the course "
+                "is submitted or approved."
+            ),
+        )
+
+        return redirect(
+            "courses:course_content_manage",
+            course_id=course.pk,
+        )
+
+    if not CourseSection.objects.filter(
+        course=course
+    ).exists():
+        messages.warning(
+            request,
+            "Create a course section before uploading a lesson.",
+        )
+
+        return redirect(
+            "courses:course_section_create",
+            course_id=course.pk,
+        )
+
+    if request.method == "POST":
+        form = VideoLessonUploadForm(
+            request.POST,
+            request.FILES,
+            course=course,
+        )
+
+        if form.is_valid():
+            form.save()
+
+            messages.success(
+                request,
+                "The video lesson was uploaded successfully.",
+            )
+
+            return redirect(
+                "courses:course_content_manage",
+                course_id=course.pk,
+            )
+    else:
+        form = VideoLessonUploadForm(
+            course=course,
+        )
+
+    return render(
+        request,
+        "courses/video_lesson_upload.html",
+        {
+            "course": course,
+            "form": form,
         },
     )

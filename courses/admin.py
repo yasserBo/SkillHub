@@ -1,8 +1,12 @@
 from django.contrib import admin, messages
 
 from .forms import CourseAdminReviewForm
-from .models import Category, Course
-
+from .models import (
+    Category,
+    Course,
+    CourseSection,
+    VideoLesson,
+)
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -134,3 +138,49 @@ class CourseAdmin(admin.ModelAdmin):
                 ),
                 level=messages.WARNING,
             )
+
+@admin.register(CourseSection)
+class CourseSectionAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "course",
+        "order",
+        "created_at",
+    )
+
+    list_filter = (
+        "course",
+    )
+
+    search_fields = (
+        "title",
+        "course__title",
+    )
+
+    ordering = (
+        "course",
+        "order",
+    )
+
+
+@admin.register(VideoLesson)
+class VideoLessonAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "section",
+        "order",
+        "duration_minutes",
+        "is_preview",
+        "created_at",
+    )
+
+    list_filter = (
+        "is_preview",
+        "section__course",
+    )
+
+    search_fields = (
+        "title",
+        "section__title",
+        "section__course__title",
+    )
