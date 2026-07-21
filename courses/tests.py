@@ -2521,3 +2521,362 @@ class CourseCertificateTests(TestCase):
             response.status_code,
             404,
         )
+
+class EditCourseInformationTests(TestCase):
+    """Tests for instructor course information editing."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="edit.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.other_instructor = User.objects.create_user(
+            email="edit.other@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner = User.objects.create_user(
+            email="edit.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.category = Category.objects.create(
+            name="Course Editing",
+        )
+
+        self.second_category = Category.objects.create(
+            name="Updated Category",
+        )
+
+        self.course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Original Course Title",
+            description="Original course description.",
+            level=Course.Level.BEGINNER,
+            price="10.00",
+            duration_minutes=60,
+            learning_objectives="Original objective",
+            status=Course.Status.DRAFT,
+        )
+
+        self.edit_url = reverse(
+            "courses:course_edit",
+            args=[self.course.pk],
+        )
+
+    def valid_update_data(self):
+        return {
+            "title": "Updated Course Title",
+            "description": "Updated course description.",
+            "category": self.second_category.pk,
+            "level": Course.Level.INTERMEDIATE,
+            "price": "20.00",
+            "duration_minutes": 120,
+            "learning_objectives": (
+                "Understand course editing\n"
+                "Save updated information"
+            ),
+        }
+
+    def test_course_owner_can_open_edit_page(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.edit_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Original Course Title",
+        )
+
+    def test_course_owner_can_edit_draft_course(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.post(
+            self.edit_url,
+            self.valid_update_data(),
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "courses:instructor_course_list",
+            ),
+        )
+
+        self.course.refresh_from_db()
+
+        self.assertEqual(
+            self.course.title,
+            "Updated Course Title",
+        )
+
+        self.assertEqual(
+            self.course.category,
+            self.second_category,
+        )
+
+        self.assertEqual(
+            self.course.status,
+            Course.Status.DRAFT,
+        )
+
+    def test_editing_rejected_course_resets_it_to_draft(self):
+        self.course.status = Course.Status.REJECTED
+        self.course.rejection_reason = (
+            "The description needs improvement."
+        )
+
+        self.course.save()
+
+        self.client.force_login(
+            self.instructor
+        )
+
+        self.client.post(
+            self.edit_url,
+            self.valid_update_data(),
+        )
+
+        self.course.refresh_from_db()
+
+        self.assertEqual(
+            self.course.status,
+            Course.Status.DRAFT,
+        )
+
+        self.assertEqual(
+            self.course.rejection_reason,
+            "",
+        )
+
+    def test_other_instructor_cannot_edit_course(self):
+        self.client.force_login(
+            self.other_instructor
+        )
+
+        response = self.client.get(
+            self.edit_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+    def test_approved_course_cannot_be_edited(self):
+        self.course.status = Course.Status.APPROVED
+        self.course.save()
+
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.edit_url
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "courses:instructor_course_list",
+            ),
+        )
+
+    def test_learner_cannot_edit_course(self):
+        self.client.force_login(
+            self.learner
+        )
+
+        response = self.client.get(
+            self.edit_url
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "accounts:dashboard",
+            ),
+            fetch_redirect_response=False,
+        )
+
+class ViewEnrolledLearnersTests(TestCase):
+    """Tests for instructors viewing enrolled learners."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="learners.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.other_instructor = User.objects.create_user(
+            email="learners.other.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner_one = User.objects.create_user(
+            email="alice.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+            first_name="Alice",
+            last_name="Learner",
+        )
+
+        self.learner_two = User.objects.create_user(
+            email="bob.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+            first_name="Bob",
+            last_name="Student",
+        )
+
+        self.unenrolled_learner = User.objects.create_user(
+            email="unenrolled@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+            first_name="Unenrolled",
+            last_name="Learner",
+        )
+
+        self.category = Category.objects.create(
+            name="Enrollment Viewing",
+        )
+
+        self.course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Course With Learners",
+            description="A course used for enrollment-list tests.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            duration_minutes=60,
+            learning_objectives="View enrolled learners",
+            status=Course.Status.APPROVED,
+        )
+
+        Enrollment.objects.create(
+            learner=self.learner_one,
+            course=self.course,
+        )
+
+        Enrollment.objects.create(
+            learner=self.learner_two,
+            course=self.course,
+        )
+
+        self.learners_url = reverse(
+            "courses:course_enrolled_learners",
+            args=[self.course.pk],
+        )
+
+    def test_course_owner_can_view_enrolled_learners(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.learners_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "alice.learner@example.com",
+        )
+
+        self.assertContains(
+            response,
+            "bob.learner@example.com",
+        )
+
+    def test_unenrolled_learner_is_not_displayed(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.learners_url
+        )
+
+        self.assertNotContains(
+            response,
+            "unenrolled@example.com",
+        )
+
+    def test_instructor_can_search_enrolled_learners(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.learners_url,
+            {
+                "q": "Alice",
+            },
+        )
+
+        self.assertContains(
+            response,
+            "alice.learner@example.com",
+        )
+
+        self.assertNotContains(
+            response,
+            "bob.learner@example.com",
+        )
+
+    def test_other_instructor_cannot_view_learners(self):
+        self.client.force_login(
+            self.other_instructor
+        )
+
+        response = self.client.get(
+            self.learners_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+    def test_learner_cannot_view_enrollment_list(self):
+        self.client.force_login(
+            self.learner_one
+        )
+
+        response = self.client.get(
+            self.learners_url
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "accounts:dashboard",
+            ),
+            fetch_redirect_response=False,
+        )

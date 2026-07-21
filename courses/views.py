@@ -1635,3 +1635,140 @@ def certificate_download(request, course_id):
     )
 
     return response
+
+@login_required
+def course_edit(request, course_id):
+    """Allow an instructor to edit their draft or rejected course."""
+
+    if request.user.role != User.Role.INSTRUCTOR:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course.objects.select_related("category"),
+        pk=course_id,
+        instructor=request.user,
+    )
+
+    editable_statuses = {
+        Course.Status.DRAFT,
+        Course.Status.REJECTED,
+    }
+
+    if course.status not in editable_statuses:
+        messages.warning(
+            request,
+            (
+                "Submitted and approved courses cannot be edited. "
+                "Only draft or rejected courses can be updated."
+            ),
+        )
+
+        return redirect(
+            "courses:instructor_course_list",
+        )
+
+    if request.method == "POST":
+        form = CourseCreationForm(
+            request.POST,
+            instance=course,
+        )
+
+        if form.is_valid():
+            updated_course = form.save(
+                commit=False,
+            )
+
+            updated_course.instructor = request.user
+            updated_course.status = Course.Status.DRAFT
+            updated_course.rejection_reason = ""
+            updated_course.save()
+
+            messages.success(
+                request,
+                "The course information was updated successfully.",
+            )
+
+            return redirect(
+                "courses:instructor_course_list",
+            )
+
+    else:
+        form = CourseCreationForm(
+            instance=course,
+        )
+
+    return render(
+        request,
+        "courses/course_edit.html",
+        {
+            "course": course,
+            "form": form,
+        },
+    )
+
+@login_required
+def course_enrolled_learners(request, course_id):
+    """Display learners enrolled in an instructor's course."""
+
+    if request.user.role != User.Role.INSTRUCTOR:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course.objects.select_related(
+            "category",
+            "instructor",
+        ),
+        pk=course_id,
+        instructor=request.user,
+    )
+
+    search_query = request.GET.get(
+        "q",
+        "",
+    ).strip()
+
+    all_enrollments = (
+        Enrollment.objects
+        .filter(course=course)
+        .select_related("learner")
+        .order_by("-enrolled_at")
+    )
+
+    total_enrollment_count = (
+        all_enrollments.count()
+    )
+
+    filtered_enrollments = all_enrollments
+
+    if search_query:
+        filtered_enrollments = (
+            filtered_enrollments.filter(
+                Q(
+                    learner__email__icontains=search_query
+                )
+                | Q(
+                    learner__first_name__icontains=search_query
+                )
+                | Q(
+                    learner__last_name__icontains=search_query
+                )
+            )
+        )
+
+    displayed_enrollment_count = (
+        filtered_enrollments.count()
+    )
+
+    return render(
+        request,
+        "courses/course_enrolled_learners.html",
+        {
+            "course": course,
+            "enrollments": filtered_enrollments,
+            "search_query": search_query,
+            "total_enrollment_count": total_enrollment_count,
+            "displayed_enrollment_count": (
+                displayed_enrollment_count
+            ),
+        },
+    )

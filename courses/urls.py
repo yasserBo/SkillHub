@@ -67,6 +67,16 @@ urlpatterns = [
         name="course_create",
     ),
     path(
+        "instructor/<int:course_id>/edit/",
+        views.course_edit,
+        name="course_edit",
+    ),
+    path(
+        "instructor/<int:course_id>/learners/",
+        views.course_enrolled_learners,
+        name="course_enrolled_learners",
+    ),
+    path(
         "instructor/<int:course_id>/content/",
         views.course_content_manage,
         name="course_content_manage",
