@@ -4,9 +4,12 @@ from .forms import CourseAdminReviewForm
 from .models import (
     Category,
     Course,
+    CourseReview,
     CourseSection,
     Enrollment,
     PaymentTransaction,
+    Quiz,
+    QuizQuestion,
     VideoLesson,
 )
 
@@ -241,4 +244,68 @@ class PaymentTransactionAdmin(admin.ModelAdmin):
         "status",
         "created_at",
         "completed_at",
+    )
+
+@admin.register(CourseReview)
+class CourseReviewAdmin(admin.ModelAdmin):
+    list_display = (
+        "learner",
+        "course",
+        "rating",
+        "updated_at",
+    )
+
+    list_filter = (
+        "rating",
+        "updated_at",
+    )
+
+    search_fields = (
+        "learner__email",
+        "course__title",
+        "comment",
+    )
+
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
+
+@admin.register(Quiz)
+class QuizAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "course",
+        "passing_score",
+        "is_published",
+        "created_at",
+    )
+
+    list_filter = (
+        "is_published",
+        "course",
+    )
+
+    search_fields = (
+        "title",
+        "course__title",
+    )
+
+
+@admin.register(QuizQuestion)
+class QuizQuestionAdmin(admin.ModelAdmin):
+    list_display = (
+        "quiz",
+        "order",
+        "text",
+        "correct_option",
+    )
+
+    list_filter = (
+        "quiz__course",
+    )
+
+    search_fields = (
+        "text",
+        "quiz__title",
     )

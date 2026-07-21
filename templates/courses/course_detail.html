@@ -7,19 +7,24 @@
 {% block content %}
 <div class="container py-5">
 
+    <!-- Back button -->
     <div class="mb-4">
         <a href="{% url 'courses:course_catalog' %}" class="text-decoration-none">
             ← Back to courses
         </a>
     </div>
 
+    <!-- Main course information -->
     <div class="row g-4">
 
+        <!-- Left side -->
         <div class="col-lg-8">
+
             <div class="card border-0 shadow-sm">
                 <div class="card-body p-4 p-md-5">
 
                     <div class="d-flex flex-wrap gap-2 mb-3">
+
                         <span class="badge text-bg-primary">
                             {{ course.category.name }}
                         </span>
@@ -31,6 +36,7 @@
                         <span class="badge text-bg-success">
                             Approved
                         </span>
+
                     </div>
 
                     <h1 class="fw-bold mb-3">
@@ -48,17 +54,23 @@
                     </h2>
 
                     {% if learning_objectives %}
+
                     <ul class="list-group list-group-flush mb-4">
+
                         {% for objective in learning_objectives %}
                         <li class="list-group-item px-0">
                             ✓ {{ objective }}
                         </li>
                         {% endfor %}
+
                     </ul>
+
                     {% else %}
+
                     <p class="text-secondary">
                         No learning objectives have been provided.
                     </p>
+
                     {% endif %}
 
                     <h2 class="h4 fw-bold mb-3">
@@ -71,37 +83,47 @@
 
                 </div>
             </div>
+
         </div>
 
+        <!-- Right side -->
         <div class="col-lg-4">
+
             <div class="card border-0 shadow-sm">
                 <div class="card-body p-4">
 
                     <div class="mb-4">
+
                         <span class="text-secondary small">
                             Course price
                         </span>
 
                         <div class="display-6 fw-bold text-primary">
+
                             {% if course.is_free %}
                             Free
                             {% else %}
                             €{{ course.price }}
                             {% endif %}
+
                         </div>
+
                     </div>
 
                     <dl class="row mb-0">
+
                         <dt class="col-5">
                             Instructor
                         </dt>
 
                         <dd class="col-7">
+
                             {% if course.instructor.get_full_name %}
                             {{ course.instructor.get_full_name }}
                             {% else %}
                             {{ course.instructor.email }}
                             {% endif %}
+
                         </dd>
 
                         <dt class="col-5">
@@ -133,12 +155,28 @@
                         </dt>
 
                         <dd class="col-7">
+
+                            {% if average_rating %}
+
+                            {{ average_rating|floatformat:1 }}/5
+
+                            <span class="text-secondary">
+                                ({{ review_count }})
+                            </span>
+
+                            {% else %}
+
                             Not rated yet
+
+                            {% endif %}
+
                         </dd>
+
                     </dl>
 
                     <hr>
 
+                    <!-- Enrollment and purchase section -->
                     {% if user.is_authenticated %}
 
                     {% if user.role == "LEARNER" %}
@@ -174,7 +212,8 @@
                     {% else %}
 
                     <div class="alert alert-secondary mb-0">
-                        Only learner accounts can purchase or enroll in courses.
+                        Only learner accounts can purchase or enroll
+                        in courses.
                     </div>
 
                     {% endif %}
@@ -189,8 +228,216 @@
 
                 </div>
             </div>
+
         </div>
 
     </div>
+
+    <!-- Reviews section -->
+    <div class="row g-4 mt-2">
+
+        <!-- Review form -->
+        <div class="col-lg-5">
+
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+
+                    <h2 class="h4 fw-bold">
+                        Rate this course
+                    </h2>
+
+                    {% if user.is_authenticated and user.role == "LEARNER" %}
+
+                    {% if is_enrolled %}
+
+                    {% if current_review %}
+
+                    <p class="text-secondary">
+                        Update your existing review.
+                    </p>
+
+                    {% else %}
+
+                    <p class="text-secondary">
+                        Share your experience with this course.
+                    </p>
+
+                    {% endif %}
+
+                    <form method="post" action="{% url 'courses:course_review_submit' course.pk %}">
+                        {% csrf_token %}
+
+                        {% if review_form.non_field_errors %}
+
+                        <div class="alert alert-danger">
+
+                            {% for error in review_form.non_field_errors %}
+                            <div>{{ error }}</div>
+                            {% endfor %}
+
+                        </div>
+
+                        {% endif %}
+
+                        {% for field in review_form %}
+
+                        <div class="mb-3">
+
+                            <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
+                                {{ field.label }}
+                            </label>
+
+                            {{ field }}
+
+                            {% if field.help_text %}
+
+                            <div class="form-text">
+                                {{ field.help_text }}
+                            </div>
+
+                            {% endif %}
+
+                            {% for error in field.errors %}
+
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+
+                            {% endfor %}
+
+                        </div>
+
+                        {% endfor %}
+
+                        <button type="submit" class="btn btn-primary">
+                            {% if current_review %}
+                            Update review
+                            {% else %}
+                            Submit review
+                            {% endif %}
+                        </button>
+
+                    </form>
+
+                    {% else %}
+
+                    <div class="alert alert-info mb-0">
+                        Enroll in this course before reviewing it.
+                    </div>
+
+                    {% endif %}
+
+                    {% elif user.is_authenticated %}
+
+                    <div class="alert alert-secondary mb-0">
+                        Only learner accounts can review courses.
+                    </div>
+
+                    {% else %}
+
+                    <div class="alert alert-secondary">
+
+                        Log in with a learner account to leave a review.
+
+                    </div>
+
+                    <a href="{% url 'accounts:login' %}?next={{ request.path }}" class="btn btn-outline-primary">
+                        Log in
+                    </a>
+
+                    {% endif %}
+
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Review list -->
+        <div class="col-lg-7">
+
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+
+                        <h2 class="h4 fw-bold mb-0">
+                            Learner Reviews
+                        </h2>
+
+                        {% if average_rating %}
+
+                        <span class="badge text-bg-warning fs-6">
+                            {{ average_rating|floatformat:1 }}/5
+                        </span>
+
+                        {% endif %}
+
+                    </div>
+
+                    {% for review in reviews %}
+
+                    <div class="
+                                {% if not forloop.last %}
+                                    border-bottom
+                                {% endif %}
+                                pb-3 mb-3
+                            ">
+
+                        <div class="d-flex justify-content-between gap-3">
+
+                            <strong>
+
+                                {% if review.learner.get_full_name %}
+                                {{ review.learner.get_full_name }}
+                                {% else %}
+                                {{ review.learner.email }}
+                                {% endif %}
+
+                            </strong>
+
+                            <span class="badge text-bg-warning">
+                                {{ review.rating }}/5
+                            </span>
+
+                        </div>
+
+                        {% if review.comment %}
+
+                        <p class="text-secondary mt-2 mb-1">
+                            {{ review.comment }}
+                        </p>
+
+                        {% endif %}
+
+                        <small class="text-secondary">
+                            {{ review.updated_at|date:"d M Y" }}
+                        </small>
+
+                    </div>
+
+                    {% empty %}
+
+                    <div class="text-center py-4">
+
+                        <h3 class="h5">
+                            No reviews yet
+                        </h3>
+
+                        <p class="text-secondary mb-0">
+                            Be the first enrolled learner to review this
+                            course.
+                        </p>
+
+                    </div>
+
+                    {% endfor %}
+
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
 </div>
 {% endblock %}

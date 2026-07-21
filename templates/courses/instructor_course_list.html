@@ -7,7 +7,11 @@ My Courses | SkillHub
 {% block content %}
 <div class="container py-5">
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-column flex-md-row
+                justify-content-between
+                align-items-md-center
+                gap-3 mb-4">
+
         <div>
             <h1 class="fw-bold mb-1">
                 My Courses
@@ -21,43 +25,56 @@ My Courses | SkillHub
         <a href="{% url 'courses:course_create' %}" class="btn btn-primary">
             Add new course
         </a>
+
     </div>
 
     {% if courses %}
+
     <div class="row g-4">
 
         {% for course in courses %}
+
         <div class="col-md-6 col-lg-4">
+
             <div class="card border-0 shadow-sm h-100">
 
                 <div class="card-body d-flex flex-column">
 
-                    <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="d-flex
+                                        justify-content-between
+                                        align-items-start
+                                        gap-2 mb-3">
 
                         {% if course.status == "DRAFT" %}
+
                         <span class="badge text-bg-secondary">
                             {{ course.get_status_display }}
                         </span>
 
                         {% elif course.status == "SUBMITTED" %}
+
                         <span class="badge text-bg-info">
                             {{ course.get_status_display }}
                         </span>
 
                         {% elif course.status == "APPROVED" %}
+
                         <span class="badge text-bg-success">
                             {{ course.get_status_display }}
                         </span>
 
                         {% elif course.status == "REJECTED" %}
+
                         <span class="badge text-bg-danger">
                             {{ course.get_status_display }}
                         </span>
+
                         {% endif %}
 
                         <span class="text-secondary small">
                             {{ course.get_level_display }}
                         </span>
+
                     </div>
 
                     <h2 class="h5 fw-bold">
@@ -100,6 +117,11 @@ My Courses | SkillHub
                             Manage content
                         </a>
 
+                        <a href="{% url 'courses:instructor_quiz_list' course.pk %}"
+                            class="btn btn-outline-dark w-100 mb-2">
+                            Manage quizzes
+                        </a>
+
                         {% if course.status == "DRAFT" %}
 
                         <form method="post" action="{% url 'courses:course_submit' course.pk %}">
@@ -113,11 +135,15 @@ My Courses | SkillHub
                         {% elif course.status == "REJECTED" %}
 
                         <div class="alert alert-danger small">
-                            <strong>Rejection reason:</strong>
+
+                            <strong>
+                                Rejection reason:
+                            </strong>
 
                             <br>
 
                             {{ course.rejection_reason|default:"No rejection reason was provided." }}
+
                         </div>
 
                         <form method="post" action="{% url 'courses:course_submit' course.pk %}">
@@ -145,8 +171,11 @@ My Courses | SkillHub
                     </div>
 
                 </div>
+
             </div>
+
         </div>
+
         {% endfor %}
 
     </div>
@@ -154,6 +183,7 @@ My Courses | SkillHub
     {% else %}
 
     <div class="card border-0 shadow-sm">
+
         <div class="card-body text-center py-5">
 
             <h2 class="h4">
@@ -169,6 +199,7 @@ My Courses | SkillHub
             </a>
 
         </div>
+
     </div>
 
     {% endif %}

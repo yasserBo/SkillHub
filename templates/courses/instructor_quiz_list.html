@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}
+Course Quizzes | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <div class="d-flex flex-column flex-md-row
+                justify-content-between
+                align-items-md-center gap-3 mb-4">
+
+        <div>
+            <a href="{% url 'courses:instructor_course_list' %}" class="text-decoration-none">
+                ← Back to my courses
+            </a>
+
+            <h1 class="fw-bold mt-2 mb-1">
+                {{ course.title }} Quizzes
+            </h1>
+
+            <p class="text-secondary mb-0">
+                Create questions and publish course quizzes.
+            </p>
+        </div>
+
+        <a href="{% url 'courses:quiz_create' course.pk %}" class="btn btn-primary">
+            Create quiz
+        </a>
+
+    </div>
+
+    {% for quiz in course.quizzes.all %}
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+
+            <div class="d-flex flex-column flex-md-row
+                            justify-content-between gap-3">
+
+                <div>
+                    <div class="d-flex gap-2 mb-2">
+
+                        {% if quiz.is_published %}
+                        <span class="badge text-bg-success">
+                            Published
+                        </span>
+                        {% else %}
+                        <span class="badge text-bg-secondary">
+                            Draft
+                        </span>
+                        {% endif %}
+
+                        <span class="badge text-bg-light">
+                            Pass: {{ quiz.passing_score }}%
+                        </span>
+
+                    </div>
+
+                    <h2 class="h4 fw-bold">
+                        {{ quiz.title }}
+                    </h2>
+
+                    <p class="text-secondary">
+                        {{ quiz.description|default:"No description." }}
+                    </p>
+
+                    <p class="mb-0">
+                        <strong>Questions:</strong>
+                        {{ quiz.questions.count }}
+                    </p>
+                </div>
+
+                <div>
+                    {% if not quiz.is_published %}
+
+                    <a href="{% url 'courses:quiz_question_create' course.pk quiz.pk %}"
+                        class="btn btn-outline-primary mb-2">
+                        Add question
+                    </a>
+
+                    <form method="post" action="{% url 'courses:quiz_publish' course.pk quiz.pk %}">
+                        {% csrf_token %}
+
+                        <button type="submit" class="btn btn-success">
+                            Publish quiz
+                        </button>
+                    </form>
+
+                    {% else %}
+
+                    <span class="text-success fw-semibold">
+                        Ready for learners
+                    </span>
+
+                    {% endif %}
+                </div>
+
+            </div>
+
+            {% if quiz.questions.all %}
+
+            <hr>
+
+            <h3 class="h6 fw-bold mb-3">
+                Questions
+            </h3>
+
+            <ol class="mb-0">
+                {% for question in quiz.questions.all %}
+                <li class="mb-2">
+                    {{ question.text }}
+
+                    <span class="text-secondary small">
+                        — Correct: {{ question.correct_option }}
+                    </span>
+                </li>
+                {% endfor %}
+            </ol>
+
+            {% endif %}
+
+        </div>
+    </div>
+
+    {% empty %}
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+
+            <h2 class="h4">
+                No quizzes created
+            </h2>
+
+            <p class="text-secondary">
+                Create the first quiz for this course.
+            </p>
+
+            <a href="{% url 'courses:quiz_create' course.pk %}" class="btn btn-primary">
+                Create quiz
+            </a>
+
+        </div>
+    </div>
+
+    {% endfor %}
+
+</div>
+{% endblock %}

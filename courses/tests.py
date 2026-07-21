@@ -11,9 +11,12 @@ from django.test import TestCase, override_settings
 from .models import (
     Category,
     Course,
+    CourseReview,
     CourseSection,
     Enrollment,
     PaymentTransaction,
+    Quiz,
+    QuizQuestion,
     VideoLesson,
 )
 
@@ -1860,3 +1863,277 @@ class WatchCourseVideoTests(TestCase):
         response = self.client.get(self.lesson_url)
 
         self.assertEqual(response.status_code, 404)
+
+
+class CourseReviewTests(TestCase):
+    """Tests for course ratings and reviews."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="review.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner = User.objects.create_user(
+            email="review.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.other_learner = User.objects.create_user(
+            email="review.other@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.category = Category.objects.create(
+            name="Review Testing",
+        )
+
+        self.course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Reviewed Django Course",
+            description="A course used for review testing.",
+            level=Course.Level.BEGINNER,
+            price="10.00",
+            duration_minutes=60,
+            learning_objectives="Learn Django",
+            status=Course.Status.APPROVED,
+        )
+
+        Enrollment.objects.create(
+            learner=self.learner,
+            course=self.course,
+        )
+
+        self.review_url = reverse(
+            "courses:course_review_submit",
+            args=[self.course.pk],
+        )
+
+    def test_enrolled_learner_can_review_course(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.post(
+            self.review_url,
+            {
+                "rating": 5,
+                "comment": "Excellent course.",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "courses:course_detail",
+                args=[self.course.pk],
+            ),
+        )
+
+        self.assertTrue(
+            CourseReview.objects.filter(
+                learner=self.learner,
+                course=self.course,
+                rating=5,
+            ).exists()
+        )
+
+    def test_non_enrolled_learner_cannot_review(self):
+        self.client.force_login(self.other_learner)
+
+        response = self.client.post(
+            self.review_url,
+            {
+                "rating": 4,
+                "comment": "Unauthorized review.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(CourseReview.objects.count(), 0)
+
+    def test_second_submission_updates_existing_review(self):
+        CourseReview.objects.create(
+            learner=self.learner,
+            course=self.course,
+            rating=3,
+            comment="Good.",
+        )
+
+        self.client.force_login(self.learner)
+
+        self.client.post(
+            self.review_url,
+            {
+                "rating": 5,
+                "comment": "Excellent after completing it.",
+            },
+        )
+
+        self.assertEqual(
+            CourseReview.objects.filter(
+                learner=self.learner,
+                course=self.course,
+            ).count(),
+            1,
+        )
+
+        review = CourseReview.objects.get(
+            learner=self.learner,
+            course=self.course,
+        )
+
+        self.assertEqual(review.rating, 5)
+
+class InstructorQuizTests(TestCase):
+    """Tests for creating and publishing course quizzes."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="quiz.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.other_instructor = User.objects.create_user(
+            email="quiz.other@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.category = Category.objects.create(
+            name="Quiz Testing",
+        )
+
+        self.course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Quiz Django Course",
+            description="A course containing quizzes.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            duration_minutes=60,
+            learning_objectives="Complete quizzes",
+            status=Course.Status.APPROVED,
+        )
+
+        self.create_url = reverse(
+            "courses:quiz_create",
+            args=[self.course.pk],
+        )
+
+    def test_instructor_can_create_quiz(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.post(
+            self.create_url,
+            {
+                "title": "Final Quiz",
+                "description": "Test your course knowledge.",
+                "passing_score": 60,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "courses:instructor_quiz_list",
+                args=[self.course.pk],
+            ),
+        )
+
+        self.assertTrue(
+            Quiz.objects.filter(
+                course=self.course,
+                title="Final Quiz",
+            ).exists()
+        )
+
+    def test_instructor_can_add_question(self):
+        quiz = Quiz.objects.create(
+            course=self.course,
+            title="Python Quiz",
+            passing_score=60,
+        )
+
+        self.client.force_login(self.instructor)
+
+        response = self.client.post(
+            reverse(
+                "courses:quiz_question_create",
+                args=[self.course.pk, quiz.pk],
+            ),
+            {
+                "text": "Which keyword creates a function?",
+                "option_a": "class",
+                "option_b": "def",
+                "option_c": "return",
+                "option_d": "import",
+                "correct_option": "B",
+                "order": 1,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "courses:instructor_quiz_list",
+                args=[self.course.pk],
+            ),
+        )
+
+        self.assertEqual(
+            QuizQuestion.objects.filter(
+                quiz=quiz,
+            ).count(),
+            1,
+        )
+
+    def test_quiz_with_question_can_be_published(self):
+        quiz = Quiz.objects.create(
+            course=self.course,
+            title="Publishable Quiz",
+            passing_score=60,
+        )
+
+        QuizQuestion.objects.create(
+            quiz=quiz,
+            text="What framework is this project using?",
+            option_a="Flask",
+            option_b="Laravel",
+            option_c="Django",
+            option_d="Spring",
+            correct_option="C",
+            order=1,
+        )
+
+        self.client.force_login(self.instructor)
+
+        self.client.post(
+            reverse(
+                "courses:quiz_publish",
+                args=[self.course.pk, quiz.pk],
+            )
+        )
+
+        quiz.refresh_from_db()
+
+        self.assertTrue(quiz.is_published)
+
+    def test_other_instructor_cannot_manage_quiz(self):
+        self.client.force_login(self.other_instructor)
+
+        response = self.client.get(
+            self.create_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )

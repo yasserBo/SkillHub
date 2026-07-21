@@ -2,7 +2,14 @@ from decimal import Decimal
 
 from django import forms
 
-from .models import Course, CourseSection, VideoLesson
+from .models import (
+    Course,
+    CourseReview,
+    CourseSection,
+    Quiz,
+    QuizQuestion,
+    VideoLesson,
+)
 
 class CourseCreationForm(forms.ModelForm):
     """Form used by instructors to create draft courses."""
@@ -320,3 +327,172 @@ class VideoLessonUploadForm(forms.ModelForm):
                 )
 
         return cleaned_data
+    
+class CourseReviewForm(forms.ModelForm):
+    """Form for rating and reviewing a course."""
+
+    class Meta:
+        model = CourseReview
+
+        fields = (
+            "rating",
+            "comment",
+        )
+
+        widgets = {
+            "rating": forms.Select(
+                attrs={
+                    "class": "form-select",
+                }
+            ),
+            "comment": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": (
+                        "Share your experience with this course"
+                    ),
+                }
+            ),
+        }
+
+    def clean_comment(self):
+        return self.cleaned_data.get(
+            "comment",
+            "",
+        ).strip()
+    
+class QuizForm(forms.ModelForm):
+    """Form used by instructors to create course quizzes."""
+
+    class Meta:
+        model = Quiz
+
+        fields = (
+            "title",
+            "description",
+            "passing_score",
+        )
+
+        widgets = {
+            "title": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "For example: Final Course Quiz",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Describe the quiz",
+                }
+            ),
+            "passing_score": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": "1",
+                    "max": "100",
+                }
+            ),
+        }
+
+    def clean_title(self):
+        title = self.cleaned_data["title"].strip()
+
+        if len(title) < 3:
+            raise forms.ValidationError(
+                "The quiz title must contain at least 3 characters."
+            )
+
+        return title
+
+
+class QuizQuestionForm(forms.ModelForm):
+    """Form used to add a multiple-choice question."""
+
+    class Meta:
+        model = QuizQuestion
+
+        fields = (
+            "text",
+            "option_a",
+            "option_b",
+            "option_c",
+            "option_d",
+            "correct_option",
+            "order",
+        )
+
+        widgets = {
+            "text": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "Enter the question",
+                }
+            ),
+            "option_a": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Option A",
+                }
+            ),
+            "option_b": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Option B",
+                }
+            ),
+            "option_c": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Option C",
+                }
+            ),
+            "option_d": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Option D",
+                }
+            ),
+            "correct_option": forms.Select(
+                attrs={
+                    "class": "form-select",
+                }
+            ),
+            "order": forms.NumberInput(
+                attrs={
+                    "class": "form-control",
+                    "min": "1",
+                }
+            ),
+        }
+
+    def __init__(self, *args, quiz, **kwargs):
+        self.quiz = quiz
+        super().__init__(*args, **kwargs)
+
+    def clean_order(self):
+        order = self.cleaned_data["order"]
+
+        duplicate_exists = QuizQuestion.objects.filter(
+            quiz=self.quiz,
+            order=order,
+        ).exists()
+
+        if duplicate_exists:
+            raise forms.ValidationError(
+                "Another question already uses this order number."
+            )
+
+        return order
+
+    def save(self, commit=True):
+        question = super().save(commit=False)
+        question.quiz = self.quiz
+
+        if commit:
+            question.save()
+
+        return question

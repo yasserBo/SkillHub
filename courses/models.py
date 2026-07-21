@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 from django.core.validators import (
     FileExtensionValidator,
+    MaxValueValidator,
     MinValueValidator,
 )
 import uuid
@@ -332,3 +333,171 @@ class PaymentTransaction(models.Model):
             f"{self.course.title} - "
             f"{self.get_status_display()}"
         )
+    
+class CourseReview(models.Model):
+    """A learner rating and review for an enrolled course."""
+
+    class Rating(models.IntegerChoices):
+        ONE = 1, "1 - Poor"
+        TWO = 2, "2 - Fair"
+        THREE = 3, "3 - Good"
+        FOUR = 4, "4 - Very good"
+        FIVE = 5, "5 - Excellent"
+
+    learner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="course_reviews",
+    )
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="reviews",
+    )
+
+    rating = models.PositiveSmallIntegerField(
+        choices=Rating.choices,
+    )
+
+    comment = models.TextField(
+        blank=True,
+        max_length=1000,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = ("-updated_at",)
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=("learner", "course"),
+                name="unique_learner_course_review",
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.learner.email} - "
+            f"{self.course.title} - "
+            f"{self.rating}/5"
+        )
+    
+class Quiz(models.Model):
+    """A multiple-choice quiz belonging to a course."""
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="quizzes",
+    )
+
+    title = models.CharField(
+        max_length=200,
+    )
+
+    description = models.TextField(
+        blank=True,
+    )
+
+    passing_score = models.PositiveSmallIntegerField(
+        default=60,
+        validators=[
+            MinValueValidator(1),
+            MaxValueValidator(100),
+        ],
+        help_text="Required percentage to pass the quiz.",
+    )
+
+    is_published = models.BooleanField(
+        default=False,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = ("-created_at",)
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=("course", "title"),
+                name="unique_quiz_title_per_course",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.course.title} - {self.title}"
+
+
+class QuizQuestion(models.Model):
+    """A multiple-choice question belonging to a quiz."""
+
+    class CorrectOption(models.TextChoices):
+        A = "A", "Option A"
+        B = "B", "Option B"
+        C = "C", "Option C"
+        D = "D", "Option D"
+
+    quiz = models.ForeignKey(
+        Quiz,
+        on_delete=models.CASCADE,
+        related_name="questions",
+    )
+
+    text = models.TextField()
+
+    option_a = models.CharField(
+        max_length=500,
+    )
+
+    option_b = models.CharField(
+        max_length=500,
+    )
+
+    option_c = models.CharField(
+        max_length=500,
+    )
+
+    option_d = models.CharField(
+        max_length=500,
+    )
+
+    correct_option = models.CharField(
+        max_length=1,
+        choices=CorrectOption.choices,
+    )
+
+    order = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ("order", "id")
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=("quiz", "order"),
+                name="unique_question_order_per_quiz",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.quiz.title} - Question {self.order}"

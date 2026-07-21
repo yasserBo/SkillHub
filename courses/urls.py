@@ -32,6 +32,11 @@ urlpatterns = [
         name="course_enroll",
     ),
     path(
+        "<int:course_id>/review/",
+        views.course_review_submit,
+        name="course_review_submit",
+    ),
+    path(
         "<int:course_id>/purchase/",
         views.course_purchase,
         name="course_purchase",
@@ -65,5 +70,25 @@ urlpatterns = [
         "instructor/<int:course_id>/submit/",
         views.course_submit,
         name="course_submit",
+    ),
+    path(
+        "instructor/<int:course_id>/quizzes/",
+        views.instructor_quiz_list,
+        name="instructor_quiz_list",
+    ),
+    path(
+        "instructor/<int:course_id>/quizzes/create/",
+        views.quiz_create,
+        name="quiz_create",
+    ),
+    path(
+        "instructor/<int:course_id>/quizzes/<int:quiz_id>/questions/add/",
+        views.quiz_question_create,
+        name="quiz_question_create",
+    ),
+    path(
+        "instructor/<int:course_id>/quizzes/<int:quiz_id>/publish/",
+        views.quiz_publish,
+        name="quiz_publish",
     ),
 ]

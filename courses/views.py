@@ -9,21 +9,28 @@ from django.contrib.auth.decorators import login_required
 
 from .forms import (
     CourseCreationForm,
+    CourseReviewForm,
     CourseSectionForm,
+    QuizForm,
+    QuizQuestionForm,
     VideoLessonUploadForm,
 )
 
 from .models import (
     Category,
     Course,
+    CourseReview,
     CourseSection,
     Enrollment,
     PaymentTransaction,
+    Quiz,
+    QuizQuestion,
     VideoLesson,
 )
 
 from django.db import transaction
 from django.utils import timezone
+from django.db.models import Avg
 
 
 
@@ -252,7 +259,7 @@ def course_catalog(request):
 
 
 def course_detail(request, course_id):
-    """Display the full details of an approved course."""
+    """Display an approved course and its reviews."""
 
     course = get_object_or_404(
         Course.objects.select_related(
@@ -269,7 +276,18 @@ def course_detail(request, course_id):
         if objective.strip()
     ]
 
+    reviews = (
+        CourseReview.objects
+        .filter(course=course)
+        .select_related("learner")
+    )
+
+    average_rating = reviews.aggregate(
+        average=Avg("rating")
+    )["average"]
+
     is_enrolled = False
+    current_review = None
 
     if (
         request.user.is_authenticated
@@ -280,6 +298,15 @@ def course_detail(request, course_id):
             course=course,
         ).exists()
 
+        current_review = CourseReview.objects.filter(
+            learner=request.user,
+            course=course,
+        ).first()
+
+    review_form = CourseReviewForm(
+        instance=current_review
+    )
+
     return render(
         request,
         "courses/course_detail.html",
@@ -287,6 +314,11 @@ def course_detail(request, course_id):
             "course": course,
             "learning_objectives": learning_objectives,
             "is_enrolled": is_enrolled,
+            "reviews": reviews,
+            "review_count": reviews.count(),
+            "average_rating": average_rating,
+            "current_review": current_review,
+            "review_form": review_form,
         },
     )
 
@@ -582,28 +614,45 @@ def course_purchase(request, course_id):
 
 @login_required
 def learner_course_content(request, course_id):
-    """Display lessons to an enrolled learner."""
+    """Display lessons and published quizzes to an enrolled learner."""
 
     if request.user.role != User.Role.LEARNER:
         return redirect("accounts:dashboard")
 
     enrollment = get_object_or_404(
-        Enrollment.objects
-        .select_related("course")
-        .prefetch_related(
-            "course__sections__lessons"
+        Enrollment.objects.select_related(
+            "course",
+            "course__category",
+            "course__instructor",
         ),
         learner=request.user,
         course_id=course_id,
         course__status=Course.Status.APPROVED,
     )
 
+    course = enrollment.course
+
+    sections = (
+        course.sections
+        .prefetch_related("lessons")
+        .order_by("order", "pk")
+    )
+
+    published_quizzes = (
+        course.quizzes
+        .filter(is_published=True)
+        .prefetch_related("questions")
+        .order_by("-created_at")
+    )
+
     return render(
         request,
         "courses/learner_course_content.html",
         {
-            "course": enrollment.course,
+            "course": course,
             "enrollment": enrollment,
+            "sections": sections,
+            "published_quizzes": published_quizzes,
         },
     )
 
@@ -667,4 +716,236 @@ def lesson_watch(request, lesson_id):
             "previous_lesson": previous_lesson,
             "next_lesson": next_lesson,
         },
+    )
+
+@login_required
+@require_POST
+def course_review_submit(request, course_id):
+    """Create or update an enrolled learner's review."""
+
+    if request.user.role != User.Role.LEARNER:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course,
+        pk=course_id,
+        status=Course.Status.APPROVED,
+        enrollments__learner=request.user,
+    )
+
+    existing_review = CourseReview.objects.filter(
+        learner=request.user,
+        course=course,
+    ).first()
+
+    form = CourseReviewForm(
+        request.POST,
+        instance=existing_review,
+    )
+
+    if form.is_valid():
+        review = form.save(commit=False)
+        review.learner = request.user
+        review.course = course
+        review.save()
+
+        messages.success(
+            request,
+            "Your course review was saved successfully.",
+        )
+    else:
+        messages.error(
+            request,
+            "Please provide a valid rating.",
+        )
+
+    return redirect(
+        "courses:course_detail",
+        course_id=course.pk,
+    )
+
+@login_required
+def instructor_quiz_list(request, course_id):
+    """Display quizzes belonging to the instructor's course."""
+
+    if request.user.role != User.Role.INSTRUCTOR:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course.objects.prefetch_related(
+            "quizzes__questions"
+        ),
+        pk=course_id,
+        instructor=request.user,
+    )
+
+    return render(
+        request,
+        "courses/instructor_quiz_list.html",
+        {
+            "course": course,
+        },
+    )
+
+
+@login_required
+def quiz_create(request, course_id):
+    """Allow a course owner to create a quiz."""
+
+    if request.user.role != User.Role.INSTRUCTOR:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course,
+        pk=course_id,
+        instructor=request.user,
+    )
+
+    if request.method == "POST":
+        form = QuizForm(request.POST)
+
+        if form.is_valid():
+            quiz = form.save(commit=False)
+            quiz.course = course
+            quiz.is_published = False
+            quiz.save()
+
+            messages.success(
+                request,
+                "The quiz was created successfully.",
+            )
+
+            return redirect(
+                "courses:instructor_quiz_list",
+                course_id=course.pk,
+            )
+    else:
+        form = QuizForm()
+
+    return render(
+        request,
+        "courses/quiz_form.html",
+        {
+            "course": course,
+            "form": form,
+        },
+    )
+
+
+@login_required
+def quiz_question_create(request, course_id, quiz_id):
+    """Allow the course owner to add a quiz question."""
+
+    if request.user.role != User.Role.INSTRUCTOR:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course,
+        pk=course_id,
+        instructor=request.user,
+    )
+
+    quiz = get_object_or_404(
+        Quiz,
+        pk=quiz_id,
+        course=course,
+    )
+
+    if quiz.is_published:
+        messages.warning(
+            request,
+            "Unpublish the quiz before adding more questions.",
+        )
+
+        return redirect(
+            "courses:instructor_quiz_list",
+            course_id=course.pk,
+        )
+
+    if request.method == "POST":
+        form = QuizQuestionForm(
+            request.POST,
+            quiz=quiz,
+        )
+
+        if form.is_valid():
+            form.save()
+
+            messages.success(
+                request,
+                "The question was added successfully.",
+            )
+
+            return redirect(
+                "courses:instructor_quiz_list",
+                course_id=course.pk,
+            )
+    else:
+        next_order = quiz.questions.count() + 1
+
+        form = QuizQuestionForm(
+            quiz=quiz,
+            initial={
+                "order": next_order,
+            },
+        )
+
+    return render(
+        request,
+        "courses/quiz_question_form.html",
+        {
+            "course": course,
+            "quiz": quiz,
+            "form": form,
+        },
+    )
+
+
+@login_required
+@require_POST
+def quiz_publish(request, course_id, quiz_id):
+    """Publish a quiz when it contains at least one question."""
+
+    if request.user.role != User.Role.INSTRUCTOR:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course,
+        pk=course_id,
+        instructor=request.user,
+    )
+
+    quiz = get_object_or_404(
+        Quiz,
+        pk=quiz_id,
+        course=course,
+    )
+
+    if not quiz.questions.exists():
+        messages.warning(
+            request,
+            "Add at least one question before publishing the quiz.",
+        )
+
+        return redirect(
+            "courses:instructor_quiz_list",
+            course_id=course.pk,
+        )
+
+    quiz.is_published = True
+    quiz.save(
+        update_fields=[
+            "is_published",
+            "updated_at",
+        ]
+    )
+
+    messages.success(
+        request,
+        "The quiz was published successfully.",
+    )
+
+    return redirect(
+        "courses:instructor_quiz_list",
+        course_id=course.pk,
     )
