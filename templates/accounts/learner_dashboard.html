@@ -6,51 +6,168 @@ Learner Dashboard | SkillHub
 
 {% block content %}
 <div class="container py-5">
-    <div class="mb-4">
-        <h1 class="fw-bold">Learner Dashboard</h1>
 
-        <p class="text-secondary">
-            Welcome,
-            {{ request.user.first_name|default:request.user.email }}.
-        </p>
-        <a href="{% url 'accounts:learner_profile' %}" class="btn btn-outline-primary">
-            View my profile
+    <div class="d-flex flex-column flex-md-row
+                justify-content-between
+                align-items-md-center gap-3 mb-4">
+
+        <div>
+            <h1 class="fw-bold mb-1">
+                Learner Dashboard
+            </h1>
+
+            <p class="text-secondary mb-0">
+                Welcome back,
+                {% if user.first_name %}
+                {{ user.first_name }}
+                {% else %}
+                {{ user.email }}
+                {% endif %}
+            </p>
+        </div>
+
+        <a href="{% url 'courses:course_catalog' %}" class="btn btn-outline-primary">
+            Browse courses
         </a>
     </div>
 
+    <div class="row g-4 mb-5">
+
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+
+                    <h2 class="h5 fw-bold">
+                        My Profile
+                    </h2>
+
+                    <p class="text-secondary">
+                        View and update your personal information.
+                    </p>
+
+                    <a href="{% url 'accounts:learner_profile' %}" class="btn btn-outline-primary">
+                        View profile
+                    </a>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+
+                    <h2 class="h5 fw-bold">
+                        Enrolled Courses
+                    </h2>
+
+                    <p class="text-secondary mb-0">
+                        You are enrolled in
+                        <strong>{{ enrollments|length }}</strong>
+                        course{{ enrollments|length|pluralize }}.
+                    </p>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="d-flex justify-content-between
+                align-items-center mb-3">
+
+        <h2 class="h3 fw-bold mb-0">
+            My Learning
+        </h2>
+
+        <a href="{% url 'courses:course_catalog' %}" class="text-decoration-none">
+            Find more courses
+        </a>
+    </div>
+
+    {% if enrollments %}
+
     <div class="row g-4">
-        <div class="col-md-4">
+
+        {% for enrollment in enrollments %}
+
+        <div class="col-md-6 col-lg-4">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <h2 class="h5">My Courses</h2>
-                    <p class="text-secondary mb-0">
-                        Your enrolled courses will appear here.
+                <div class="card-body d-flex flex-column">
+
+                    <div class="d-flex
+                                        justify-content-between
+                                        align-items-start gap-2 mb-3">
+
+                        <span class="badge text-bg-primary">
+                            {{ enrollment.course.category.name }}
+                        </span>
+
+                        <span class="badge text-bg-success">
+                            {{ enrollment.get_status_display }}
+                        </span>
+
+                    </div>
+
+                    <h3 class="h5 fw-bold">
+                        {{ enrollment.course.title }}
+                    </h3>
+
+                    <p class="text-secondary">
+                        {{ enrollment.course.description|truncatewords:20 }}
                     </p>
+
+                    <p class="small mb-1">
+                        <strong>Instructor:</strong>
+
+                        {% if enrollment.course.instructor.get_full_name %}
+                        {{ enrollment.course.instructor.get_full_name }}
+                        {% else %}
+                        {{ enrollment.course.instructor.email }}
+                        {% endif %}
+                    </p>
+
+                    <p class="small mb-3">
+                        <strong>Enrolled:</strong>
+                        {{ enrollment.enrolled_at|date:"d M Y" }}
+                    </p>
+
+                    <div class="mt-auto">
+                        <a href="{% url 'courses:learner_course_content' enrollment.course.pk %}"
+                            class="btn btn-primary w-100">
+                            Continue learning
+                        </a>
+                    </div>
+
                 </div>
             </div>
         </div>
 
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <h2 class="h5">Learning Progress</h2>
-                    <p class="text-secondary mb-0">
-                        Your progress will appear here.
-                    </p>
-                </div>
-            </div>
-        </div>
+        {% endfor %}
 
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <h2 class="h5">Recommendations</h2>
-                    <p class="text-secondary mb-0">
-                        Recommended courses will appear here.
-                    </p>
-                </div>
-            </div>
+    </div>
+
+    {% else %}
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+
+            <h3 class="h4">
+                No enrolled courses yet
+            </h3>
+
+            <p class="text-secondary">
+                Purchase or enroll in a course to start learning.
+            </p>
+
+            <a href="{% url 'courses:course_catalog' %}" class="btn btn-primary">
+                Browse courses
+            </a>
+
         </div>
     </div>
+
+    {% endif %}
+
 </div>
 {% endblock %}

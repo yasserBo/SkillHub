@@ -11,6 +11,7 @@ from .forms import (
     SkillHubAuthenticationForm,
 )
 from .models import LearnerProfile,User
+from courses.models import Course, Enrollment
 
 
 
@@ -129,23 +130,31 @@ def dashboard_redirect(request):
 
 @login_required
 def learner_dashboard(request):
-    """Display the learner dashboard."""
+    """Display the learner dashboard and enrolled courses."""
 
-    user = request.user
+    if request.user.role != User.Role.LEARNER:
+        return redirect("accounts:dashboard")
 
-    if (
-        user.is_superuser
-        or user.is_staff
-        or user.role == User.Role.ADMIN
-    ):
-        return redirect("admin:index")
-
-    if user.role == User.Role.INSTRUCTOR:
-        return redirect("accounts:instructor_dashboard")
+    enrollments = (
+        Enrollment.objects
+        .filter(
+            learner=request.user,
+            course__status=Course.Status.APPROVED,
+        )
+        .select_related(
+            "course",
+            "course__category",
+            "course__instructor",
+        )
+        .order_by("-enrolled_at")
+    )
 
     return render(
         request,
         "accounts/learner_dashboard.html",
+        {
+            "enrollments": enrollments,
+        },
     )
 
 
