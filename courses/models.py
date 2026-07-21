@@ -501,3 +501,96 @@ class QuizQuestion(models.Model):
 
     def __str__(self):
         return f"{self.quiz.title} - Question {self.order}"
+    
+class QuizAttempt(models.Model):
+    """A completed quiz attempt made by an enrolled learner."""
+
+    learner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="quiz_attempts",
+    )
+
+    quiz = models.ForeignKey(
+        Quiz,
+        on_delete=models.CASCADE,
+        related_name="attempts",
+    )
+
+    score = models.PositiveSmallIntegerField(
+        default=0,
+        validators=[
+            MinValueValidator(0),
+            MaxValueValidator(100),
+        ],
+    )
+
+    total_questions = models.PositiveIntegerField(
+        default=0,
+    )
+
+    correct_answers = models.PositiveIntegerField(
+        default=0,
+    )
+
+    passed = models.BooleanField(
+        default=False,
+    )
+
+    completed_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ("-completed_at",)
+
+    def __str__(self):
+        return (
+            f"{self.learner.email} - "
+            f"{self.quiz.title} - "
+            f"{self.score}%"
+        )
+
+
+class QuizAnswer(models.Model):
+    """A learner's selected answer for one quiz question."""
+
+    attempt = models.ForeignKey(
+        QuizAttempt,
+        on_delete=models.CASCADE,
+        related_name="answers",
+    )
+
+    question = models.ForeignKey(
+        QuizQuestion,
+        on_delete=models.CASCADE,
+        related_name="submitted_answers",
+    )
+
+    selected_option = models.CharField(
+        max_length=1,
+        choices=QuizQuestion.CorrectOption.choices,
+    )
+
+    is_correct = models.BooleanField(
+        default=False,
+    )
+
+    class Meta:
+        ordering = (
+            "question__order",
+            "question__pk",
+        )
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=("attempt", "question"),
+                name="unique_answer_per_attempt_question",
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.attempt.learner.email} - "
+            f"Question {self.question.order}"
+        )

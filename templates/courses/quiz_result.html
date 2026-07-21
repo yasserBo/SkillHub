@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}
+Quiz Result | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <div class="row justify-content-center">
+
+        <div class="col-xl-9">
+
+            <div class="mb-4">
+
+                <a href="{% url 'courses:learner_course_content' course.pk %}" class="text-decoration-none">
+                    ← Back to course content
+                </a>
+
+                <h1 class="fw-bold mt-3 mb-1">
+                    Quiz Result
+                </h1>
+
+                <p class="text-secondary mb-0">
+                    {{ quiz.title }} · {{ course.title }}
+                </p>
+
+            </div>
+
+            <div class="
+                    card
+                    border-0
+                    shadow-sm
+                    mb-5
+                    {% if attempt.passed %}
+                        border-start border-success border-5
+                    {% else %}
+                        border-start border-warning border-5
+                    {% endif %}
+                ">
+
+                <div class="card-body p-4 p-md-5">
+
+                    <div class="row align-items-center g-4">
+
+                        <div class="col-md-7">
+
+                            {% if attempt.passed %}
+
+                            <span class="badge text-bg-success mb-3">
+                                Passed
+                            </span>
+
+                            <h2 class="fw-bold">
+                                Congratulations!
+                            </h2>
+
+                            <p class="text-secondary mb-0">
+                                You achieved the required score for this quiz.
+                            </p>
+
+                            {% else %}
+
+                            <span class="badge text-bg-warning mb-3">
+                                Not passed
+                            </span>
+
+                            <h2 class="fw-bold">
+                                Keep learning
+                            </h2>
+
+                            <p class="text-secondary mb-0">
+                                Review the course content and try the quiz again.
+                            </p>
+
+                            {% endif %}
+
+                        </div>
+
+                        <div class="col-md-5 text-md-end">
+
+                            <div class="display-2 fw-bold text-primary">
+                                {{ attempt.score }}%
+                            </div>
+
+                            <div class="text-secondary">
+                                Required:
+                                {{ quiz.passing_score }}%
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+
+                            <span class="text-secondary small">
+                                Correct answers
+                            </span>
+
+                            <div class="h4 fw-bold mb-0">
+                                {{ attempt.correct_answers }}
+                            </div>
+
+                        </div>
+
+                        <div class="col-md-4">
+
+                            <span class="text-secondary small">
+                                Total questions
+                            </span>
+
+                            <div class="h4 fw-bold mb-0">
+                                {{ attempt.total_questions }}
+                            </div>
+
+                        </div>
+
+                        <div class="col-md-4">
+
+                            <span class="text-secondary small">
+                                Completed
+                            </span>
+
+                            <div class="fw-semibold">
+                                {{ attempt.completed_at|date:"d M Y H:i" }}
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mt-4">
+
+                        <a href="{% url 'courses:quiz_take' quiz.pk %}" class="btn btn-primary">
+                            Try quiz again
+                        </a>
+
+                        <a href="{% url 'courses:learner_course_content' course.pk %}"
+                            class="btn btn-outline-secondary">
+                            Return to course
+                        </a>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="mb-3">
+
+                <h2 class="h3 fw-bold mb-1">
+                    Answer Review
+                </h2>
+
+                <p class="text-secondary mb-0">
+                    Review your answers and the correct answers.
+                </p>
+
+            </div>
+
+            {% for row in answer_rows %}
+
+            <div class="card border-0 shadow-sm mb-4">
+
+                <div class="card-body p-4">
+
+                    <div class="d-flex
+                                    justify-content-between
+                                    align-items-start
+                                    gap-3 mb-3">
+
+                        <h3 class="h5 fw-bold mb-0">
+
+                            Question {{ forloop.counter }}
+
+                        </h3>
+
+                        {% if row.answer.is_correct %}
+
+                        <span class="badge text-bg-success">
+                            Correct
+                        </span>
+
+                        {% else %}
+
+                        <span class="badge text-bg-danger">
+                            Incorrect
+                        </span>
+
+                        {% endif %}
+
+                    </div>
+
+                    <p class="fs-5">
+                        {{ row.question.text }}
+                    </p>
+
+                    <div class="
+                                alert
+                                {% if row.answer.is_correct %}
+                                    alert-success
+                                {% else %}
+                                    alert-danger
+                                {% endif %}
+                            ">
+
+                        <strong>Your answer:</strong>
+
+                        {{ row.answer.selected_option }}.
+                        {{ row.selected_text }}
+
+                    </div>
+
+                    {% if not row.answer.is_correct %}
+
+                    <div class="alert alert-success mb-0">
+
+                        <strong>Correct answer:</strong>
+
+                        {{ row.question.correct_option }}.
+                        {{ row.correct_text }}
+
+                    </div>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

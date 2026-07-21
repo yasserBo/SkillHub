@@ -24,6 +24,8 @@ from .models import (
     Enrollment,
     PaymentTransaction,
     Quiz,
+    QuizAnswer,
+    QuizAttempt,
     QuizQuestion,
     VideoLesson,
 )
@@ -638,12 +640,32 @@ def learner_course_content(request, course_id):
         .order_by("order", "pk")
     )
 
-    published_quizzes = (
+    published_quizzes = list(
         course.quizzes
         .filter(is_published=True)
         .prefetch_related("questions")
         .order_by("-created_at")
     )
+
+    quiz_cards = []
+
+    for quiz in published_quizzes:
+        latest_attempt = (
+            QuizAttempt.objects
+            .filter(
+                learner=request.user,
+                quiz=quiz,
+            )
+            .order_by("-completed_at")
+            .first()
+        )
+
+        quiz_cards.append(
+            {
+                "quiz": quiz,
+                "latest_attempt": latest_attempt,
+            }
+        )
 
     return render(
         request,
@@ -652,10 +674,9 @@ def learner_course_content(request, course_id):
             "course": course,
             "enrollment": enrollment,
             "sections": sections,
-            "published_quizzes": published_quizzes,
+            "quiz_cards": quiz_cards,
         },
     )
-
 
 @login_required
 def lesson_watch(request, lesson_id):
@@ -763,6 +784,56 @@ def course_review_submit(request, course_id):
         "courses:course_detail",
         course_id=course.pk,
     )
+
+
+def _build_quiz_question_rows(
+    questions,
+    selected_answers=None,
+    errors=None,
+):
+    """Prepare quiz questions and answer choices for the template."""
+
+    selected_answers = selected_answers or {}
+    errors = errors or {}
+
+    rows = []
+
+    for question in questions:
+        rows.append(
+            {
+                "question": question,
+                "selected": selected_answers.get(
+                    question.pk,
+                    "",
+                ),
+                "error": errors.get(
+                    question.pk,
+                    "",
+                ),
+                "options": [
+                    {
+                        "value": "A",
+                        "text": question.option_a,
+                    },
+                    {
+                        "value": "B",
+                        "text": question.option_b,
+                    },
+                    {
+                        "value": "C",
+                        "text": question.option_c,
+                    },
+                    {
+                        "value": "D",
+                        "text": question.option_d,
+                    },
+                ],
+            }
+        )
+
+    return rows
+
+
 
 @login_required
 def instructor_quiz_list(request, course_id):
@@ -948,4 +1019,209 @@ def quiz_publish(request, course_id, quiz_id):
     return redirect(
         "courses:instructor_quiz_list",
         course_id=course.pk,
+    )
+
+@login_required
+def quiz_take(request, quiz_id):
+    """Allow an enrolled learner to complete a published quiz."""
+
+    if request.user.role != User.Role.LEARNER:
+        return redirect("accounts:dashboard")
+
+    quiz = get_object_or_404(
+        Quiz.objects.select_related(
+            "course",
+            "course__category",
+        ).prefetch_related(
+            "questions",
+        ),
+        pk=quiz_id,
+        is_published=True,
+        course__status=Course.Status.APPROVED,
+        course__enrollments__learner=request.user,
+    )
+
+    questions = list(
+        quiz.questions.order_by(
+            "order",
+            "pk",
+        )
+    )
+
+    if not questions:
+        messages.warning(
+            request,
+            "This quiz does not contain any questions.",
+        )
+
+        return redirect(
+            "courses:learner_course_content",
+            course_id=quiz.course.pk,
+        )
+
+    selected_answers = {}
+    errors = {}
+
+    if request.method == "POST":
+        valid_options = {
+            value
+            for value, _label
+            in QuizQuestion.CorrectOption.choices
+        }
+
+        for question in questions:
+            field_name = f"question_{question.pk}"
+
+            selected_option = (
+                request.POST
+                .get(field_name, "")
+                .strip()
+                .upper()
+            )
+
+            selected_answers[question.pk] = selected_option
+
+            if selected_option not in valid_options:
+                errors[question.pk] = (
+                    "Select one answer for this question."
+                )
+
+        if not errors:
+            correct_count = sum(
+                1
+                for question in questions
+                if selected_answers[question.pk]
+                == question.correct_option
+            )
+
+            total_questions = len(questions)
+
+            score = round(
+                correct_count
+                / total_questions
+                * 100
+            )
+
+            passed = score >= quiz.passing_score
+
+            with transaction.atomic():
+                attempt = QuizAttempt.objects.create(
+                    learner=request.user,
+                    quiz=quiz,
+                    score=score,
+                    total_questions=total_questions,
+                    correct_answers=correct_count,
+                    passed=passed,
+                )
+
+                answers = [
+                    QuizAnswer(
+                        attempt=attempt,
+                        question=question,
+                        selected_option=selected_answers[
+                            question.pk
+                        ],
+                        is_correct=(
+                            selected_answers[question.pk]
+                            == question.correct_option
+                        ),
+                    )
+                    for question in questions
+                ]
+
+                QuizAnswer.objects.bulk_create(
+                    answers
+                )
+
+            messages.success(
+                request,
+                "Your quiz was submitted successfully.",
+            )
+
+            return redirect(
+                "courses:quiz_result",
+                attempt_id=attempt.pk,
+            )
+
+    question_rows = _build_quiz_question_rows(
+        questions=questions,
+        selected_answers=selected_answers,
+        errors=errors,
+    )
+
+    return render(
+        request,
+        "courses/quiz_take.html",
+        {
+            "quiz": quiz,
+            "course": quiz.course,
+            "question_rows": question_rows,
+            "question_count": len(questions),
+        },
+    )
+
+@login_required
+def quiz_result(request, attempt_id):
+    """Display the result of a learner's completed quiz attempt."""
+
+    if request.user.role != User.Role.LEARNER:
+        return redirect("accounts:dashboard")
+
+    attempt = get_object_or_404(
+        QuizAttempt.objects.select_related(
+            "quiz",
+            "quiz__course",
+        ),
+        pk=attempt_id,
+        learner=request.user,
+        quiz__course__status=Course.Status.APPROVED,
+        quiz__course__enrollments__learner=request.user,
+    )
+
+    answers = (
+        QuizAnswer.objects
+        .filter(attempt=attempt)
+        .select_related("question")
+        .order_by(
+            "question__order",
+            "question__pk",
+        )
+    )
+
+    answer_rows = []
+
+    for answer in answers:
+        question = answer.question
+
+        option_texts = {
+            "A": question.option_a,
+            "B": question.option_b,
+            "C": question.option_c,
+            "D": question.option_d,
+        }
+
+        answer_rows.append(
+            {
+                "answer": answer,
+                "question": question,
+                "selected_text": option_texts.get(
+                    answer.selected_option,
+                    "",
+                ),
+                "correct_text": option_texts.get(
+                    question.correct_option,
+                    "",
+                ),
+            }
+        )
+
+    return render(
+        request,
+        "courses/quiz_result.html",
+        {
+            "attempt": attempt,
+            "quiz": attempt.quiz,
+            "course": attempt.quiz.course,
+            "answer_rows": answer_rows,
+        },
     )

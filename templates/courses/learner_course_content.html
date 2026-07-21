@@ -7,7 +7,6 @@
 {% block content %}
 <div class="container py-5">
 
-    <!-- Page heading -->
     <div class="mb-4">
 
         <a href="{% url 'courses:course_detail' course.pk %}" class="text-decoration-none">
@@ -19,19 +18,19 @@
         </h1>
 
         <p class="text-secondary mb-0">
-            Access the course lessons and available quizzes.
+            Access course lessons and complete published quizzes.
         </p>
 
     </div>
 
-    <!-- Course information -->
-    <div class="card border-0 shadow-sm mb-4">
+    <div class="card border-0 shadow-sm mb-5">
 
         <div class="card-body p-4">
 
             <div class="row g-3">
 
                 <div class="col-md-4">
+
                     <span class="text-secondary small">
                         Instructor
                     </span>
@@ -45,9 +44,11 @@
                         {% endif %}
 
                     </div>
+
                 </div>
 
                 <div class="col-md-3">
+
                     <span class="text-secondary small">
                         Category
                     </span>
@@ -55,9 +56,11 @@
                     <div class="fw-semibold">
                         {{ course.category.name }}
                     </div>
+
                 </div>
 
                 <div class="col-md-3">
+
                     <span class="text-secondary small">
                         Level
                     </span>
@@ -65,9 +68,11 @@
                     <div class="fw-semibold">
                         {{ course.get_level_display }}
                     </div>
+
                 </div>
 
                 <div class="col-md-2">
+
                     <span class="text-secondary small">
                         Duration
                     </span>
@@ -75,6 +80,7 @@
                     <div class="fw-semibold">
                         {{ course.duration_display }}
                     </div>
+
                 </div>
 
             </div>
@@ -83,12 +89,15 @@
 
     </div>
 
-    <!-- Video lessons -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="mb-3">
 
-        <h2 class="h3 fw-bold mb-0">
+        <h2 class="h3 fw-bold mb-1">
             Course Lessons
         </h2>
+
+        <p class="text-secondary mb-0">
+            Select a lesson to start watching.
+        </p>
 
     </div>
 
@@ -173,8 +182,10 @@
 
     {% endfor %}
 
-    <!-- Published quizzes -->
-    <div class="d-flex justify-content-between align-items-center mt-5 mb-3">
+    <div class="d-flex flex-column flex-md-row
+                justify-content-between
+                align-items-md-center
+                gap-3 mt-5 mb-3">
 
         <div>
 
@@ -183,23 +194,23 @@
             </h2>
 
             <p class="text-secondary mb-0">
-                Test your knowledge after completing the lessons.
+                Test your knowledge and view your latest results.
             </p>
 
         </div>
 
         <span class="badge text-bg-primary fs-6">
-            {{ published_quizzes|length }}
-            quiz{{ published_quizzes|length|pluralize:"zes" }}
+            {{ quiz_cards|length }}
+            quiz{{ quiz_cards|length|pluralize:"zes" }}
         </span>
 
     </div>
 
-    {% if published_quizzes %}
+    {% if quiz_cards %}
 
     <div class="row g-4">
 
-        {% for quiz in published_quizzes %}
+        {% for card in quiz_cards %}
 
         <div class="col-md-6 col-lg-4">
 
@@ -217,35 +228,72 @@
                         </span>
 
                         <span class="badge text-bg-light">
-                            Pass: {{ quiz.passing_score }}%
+                            Pass: {{ card.quiz.passing_score }}%
                         </span>
 
                     </div>
 
                     <h3 class="h5 fw-bold">
-                        {{ quiz.title }}
+                        {{ card.quiz.title }}
                     </h3>
 
                     <p class="text-secondary">
-                        {{ quiz.description|default:"Test your understanding of this course." }}
+                        {{ card.quiz.description|default:"Test your understanding of this course." }}
                     </p>
 
                     <p class="mb-3">
 
                         <strong>Questions:</strong>
-                        {{ quiz.questions.count }}
+                        {{ card.quiz.questions.count }}
 
                     </p>
 
+                    {% if card.latest_attempt %}
+
+                    <div class="
+                                        alert
+                                        {% if card.latest_attempt.passed %}
+                                            alert-success
+                                        {% else %}
+                                            alert-warning
+                                        {% endif %}
+                                    ">
+
+                        <div class="fw-semibold">
+                            Latest result:
+                            {{ card.latest_attempt.score }}%
+                        </div>
+
+                        <div class="small">
+                            {% if card.latest_attempt.passed %}
+                            Passed
+                            {% else %}
+                            Not passed
+                            {% endif %}
+
+                            ·
+
+                            {{ card.latest_attempt.completed_at|date:"d M Y H:i" }}
+                        </div>
+
+                    </div>
+
+                    <a href="{% url 'courses:quiz_result' card.latest_attempt.pk %}"
+                        class="btn btn-outline-secondary w-100 mb-2">
+                        View latest result
+                    </a>
+
+                    {% endif %}
+
                     <div class="mt-auto">
 
-                        <button type="button" class="btn btn-outline-primary w-100" disabled>
-                            Quiz available
-                        </button>
-
-                        <p class="small text-secondary text-center mt-2 mb-0">
-                            Quiz completion will be added in the next task.
-                        </p>
+                        <a href="{% url 'courses:quiz_take' card.quiz.pk %}" class="btn btn-primary w-100">
+                            {% if card.latest_attempt %}
+                            Try quiz again
+                            {% else %}
+                            Start quiz
+                            {% endif %}
+                        </a>
 
                     </div>
 
@@ -270,7 +318,7 @@
             </h3>
 
             <p class="text-secondary mb-0">
-                The instructor has not published a quiz for this course yet.
+                The instructor has not published a quiz yet.
             </p>
 
         </div>

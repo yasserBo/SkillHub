@@ -22,6 +22,16 @@ urlpatterns = [
         name="lesson_watch",
     ),
     path(
+        "learning/quizzes/<int:quiz_id>/",
+        views.quiz_take,
+        name="quiz_take",
+    ),
+    path(
+        "learning/quiz-attempts/<int:attempt_id>/",
+        views.quiz_result,
+        name="quiz_result",
+    ),
+    path(
         "<int:course_id>/",
         views.course_detail,
         name="course_detail",

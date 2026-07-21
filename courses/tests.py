@@ -16,6 +16,8 @@ from .models import (
     Enrollment,
     PaymentTransaction,
     Quiz,
+    QuizAnswer,
+    QuizAttempt,
     QuizQuestion,
     VideoLesson,
 )
@@ -2131,6 +2133,222 @@ class InstructorQuizTests(TestCase):
 
         response = self.client.get(
             self.create_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+
+class CompleteCourseQuizTests(TestCase):
+    """Tests for learner quiz completion and scoring."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="complete.quiz.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner = User.objects.create_user(
+            email="complete.quiz.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.other_learner = User.objects.create_user(
+            email="complete.quiz.other@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.category = Category.objects.create(
+            name="Quiz Completion Testing",
+        )
+
+        self.course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Complete Python Quiz",
+            description="A course used for quiz completion tests.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            duration_minutes=60,
+            learning_objectives="Complete the quiz",
+            status=Course.Status.APPROVED,
+        )
+
+        Enrollment.objects.create(
+            learner=self.learner,
+            course=self.course,
+        )
+
+        self.quiz = Quiz.objects.create(
+            course=self.course,
+            title="Python Final Quiz",
+            description="Complete all questions.",
+            passing_score=60,
+            is_published=True,
+        )
+
+        self.question_one = QuizQuestion.objects.create(
+            quiz=self.quiz,
+            text="Which keyword creates a Python function?",
+            option_a="class",
+            option_b="def",
+            option_c="import",
+            option_d="return",
+            correct_option="B",
+            order=1,
+        )
+
+        self.question_two = QuizQuestion.objects.create(
+            quiz=self.quiz,
+            text="Which value is a Boolean?",
+            option_a="True",
+            option_b="Python",
+            option_c="10.5",
+            option_d="Hello",
+            correct_option="A",
+            order=2,
+        )
+
+        self.quiz_url = reverse(
+            "courses:quiz_take",
+            args=[self.quiz.pk],
+        )
+
+    def test_enrolled_learner_can_open_published_quiz(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.get(
+            self.quiz_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Python Final Quiz",
+        )
+
+        self.assertContains(
+            response,
+            self.question_one.text,
+        )
+
+    def test_learner_can_submit_quiz_and_pass(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.post(
+            self.quiz_url,
+            {
+                f"question_{self.question_one.pk}": "B",
+                f"question_{self.question_two.pk}": "A",
+            },
+        )
+
+        attempt = QuizAttempt.objects.get(
+            learner=self.learner,
+            quiz=self.quiz,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "courses:quiz_result",
+                args=[attempt.pk],
+            ),
+        )
+
+        self.assertEqual(
+            attempt.score,
+            100,
+        )
+
+        self.assertEqual(
+            attempt.correct_answers,
+            2,
+        )
+
+        self.assertTrue(
+            attempt.passed,
+        )
+
+        self.assertEqual(
+            QuizAnswer.objects.filter(
+                attempt=attempt,
+            ).count(),
+            2,
+        )
+
+    def test_quiz_score_and_failed_result_are_calculated(self):
+        self.client.force_login(self.learner)
+
+        self.client.post(
+            self.quiz_url,
+            {
+                f"question_{self.question_one.pk}": "B",
+                f"question_{self.question_two.pk}": "D",
+            },
+        )
+
+        attempt = QuizAttempt.objects.get(
+            learner=self.learner,
+            quiz=self.quiz,
+        )
+
+        self.assertEqual(
+            attempt.score,
+            50,
+        )
+
+        self.assertEqual(
+            attempt.correct_answers,
+            1,
+        )
+
+        self.assertFalse(
+            attempt.passed,
+        )
+
+    def test_missing_answer_does_not_create_attempt(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.post(
+            self.quiz_url,
+            {
+                f"question_{self.question_one.pk}": "B",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Select one answer for this question.",
+        )
+
+        self.assertFalse(
+            QuizAttempt.objects.exists(),
+        )
+
+    def test_non_enrolled_learner_cannot_open_quiz(self):
+        self.client.force_login(
+            self.other_learner
+        )
+
+        response = self.client.get(
+            self.quiz_url
         )
 
         self.assertEqual(

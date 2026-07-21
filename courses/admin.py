@@ -9,6 +9,8 @@ from .models import (
     Enrollment,
     PaymentTransaction,
     Quiz,
+    QuizAnswer,
+    QuizAttempt,
     QuizQuestion,
     VideoLesson,
 )
@@ -308,4 +310,65 @@ class QuizQuestionAdmin(admin.ModelAdmin):
     search_fields = (
         "text",
         "quiz__title",
+    )
+
+@admin.register(QuizAttempt)
+class QuizAttemptAdmin(admin.ModelAdmin):
+    list_display = (
+        "learner",
+        "quiz",
+        "score",
+        "correct_answers",
+        "total_questions",
+        "passed",
+        "completed_at",
+    )
+
+    list_filter = (
+        "passed",
+        "completed_at",
+        "quiz",
+    )
+
+    search_fields = (
+        "learner__email",
+        "quiz__title",
+        "quiz__course__title",
+    )
+
+    readonly_fields = (
+        "learner",
+        "quiz",
+        "score",
+        "correct_answers",
+        "total_questions",
+        "passed",
+        "completed_at",
+    )
+
+
+@admin.register(QuizAnswer)
+class QuizAnswerAdmin(admin.ModelAdmin):
+    list_display = (
+        "attempt",
+        "question",
+        "selected_option",
+        "is_correct",
+    )
+
+    list_filter = (
+        "is_correct",
+        "selected_option",
+    )
+
+    search_fields = (
+        "attempt__learner__email",
+        "question__text",
+    )
+
+    readonly_fields = (
+        "attempt",
+        "question",
+        "selected_option",
+        "is_correct",
     )
