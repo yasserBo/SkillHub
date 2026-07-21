@@ -1,0 +1,652 @@
+{% extends "base.html" %}
+
+{% block title %}
+Platform Reports | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <div class="d-flex
+                flex-column
+                flex-lg-row
+                justify-content-between
+                align-items-lg-center
+                gap-3 mb-4">
+
+        <div>
+
+            <a href="{% url 'accounts:dashboard' %}" class="text-decoration-none">
+                ← Back to administrator dashboard
+            </a>
+
+            <h1 class="fw-bold mt-3 mb-1">
+                Platform Reports
+            </h1>
+
+            <p class="text-secondary mb-0">
+                Review platform activity, revenue, course performance,
+                and learner engagement.
+            </p>
+
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+
+            <a href="{% url 'courses:admin_payment_transactions' %}" class="btn btn-outline-primary">
+                View payments
+            </a>
+
+            <a href="?{% if report_query %}{{ report_query }}&{% endif %}format=csv" class="btn btn-success">
+                Download CSV report
+            </a>
+
+        </div>
+
+    </div>
+
+    <div class="card border-0 shadow-sm mb-5">
+
+        <div class="card-body p-4">
+
+            <form method="get">
+
+                <div class="row g-3">
+
+                    <div class="col-md-5">
+
+                        <label for="start-date" class="form-label fw-semibold">
+                            Start date
+                        </label>
+
+                        <input id="start-date" type="date" name="start_date" value="{{ start_value }}"
+                            class="form-control">
+
+                    </div>
+
+                    <div class="col-md-5">
+
+                        <label for="end-date" class="form-label fw-semibold">
+                            End date
+                        </label>
+
+                        <input id="end-date" type="date" name="end_date" value="{{ end_value }}" class="form-control">
+
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end">
+
+                        <button type="submit" class="btn btn-primary w-100">
+                            Generate
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </form>
+
+            {% if filters_are_active %}
+
+            <div class="d-flex
+                            flex-column
+                            flex-sm-row
+                            justify-content-between
+                            align-items-sm-center
+                            gap-2 mt-3">
+
+                <p class="text-secondary mb-0">
+
+                    Report period:
+
+                    <strong>
+                        {{ start_value|default:"Beginning" }}
+                    </strong>
+
+                    to
+
+                    <strong>
+                        {{ end_value|default:"Today" }}
+                    </strong>
+
+                </p>
+
+                <a href="{% url 'courses:admin_platform_reports' %}" class="btn btn-sm btn-outline-secondary">
+                    Clear date filter
+                </a>
+
+            </div>
+
+            {% else %}
+
+            <p class="text-secondary small mt-3 mb-0">
+                The report currently includes all available platform data.
+            </p>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+    <div class="row g-4 mb-5">
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Learners
+                    </span>
+
+                    <div class="display-6 fw-bold text-primary mt-2">
+                        {{ summary.learner_count }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        Registered learner accounts
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Instructors
+                    </span>
+
+                    <div class="display-6 fw-bold mt-2">
+                        {{ summary.instructor_count }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        Registered instructor accounts
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Courses created
+                    </span>
+
+                    <div class="display-6 fw-bold mt-2">
+                        {{ summary.course_count }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        {{ summary.approved_course_count }}
+                        approved
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Enrollments
+                    </span>
+
+                    <div class="display-6 fw-bold mt-2">
+                        {{ summary.enrollment_count }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        Course enrollment records
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Successful revenue
+                    </span>
+
+                    <div class="display-6 fw-bold text-success mt-2">
+                        €{{ summary.total_revenue|floatformat:2 }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        {{ summary.successful_sales }}
+                        successful sale{{ summary.successful_sales|pluralize }}
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Average sale
+                    </span>
+
+                    <div class="display-6 fw-bold mt-2">
+                        €{{ summary.average_sale|floatformat:2 }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        {{ summary.paying_learners }}
+                        paying learner{{ summary.paying_learners|pluralize }}
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Reviews
+                    </span>
+
+                    <div class="display-6 fw-bold mt-2">
+                        {{ summary.review_count }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        Submitted course reviews
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Certificates
+                    </span>
+
+                    <div class="display-6 fw-bold mt-2">
+                        {{ summary.certificate_count }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        Generated certificates
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="row g-4 mb-5">
+
+        <div class="col-md-6">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <h2 class="h5 fw-bold">
+                        Pending Payments
+                    </h2>
+
+                    <div class="display-6 fw-bold text-warning">
+                        {{ summary.pending_payment_count }}
+                    </div>
+
+                    <p class="text-secondary mb-0">
+                        Transactions awaiting successful completion.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-6">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <h2 class="h5 fw-bold">
+                        Failed Payments
+                    </h2>
+
+                    <div class="display-6 fw-bold text-danger">
+                        {{ summary.failed_payment_count }}
+                    </div>
+
+                    <p class="text-secondary mb-0">
+                        Transactions that were not successfully completed.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="mb-3">
+
+        <h2 class="h3 fw-bold mb-1">
+            Course Performance
+        </h2>
+
+        <p class="text-secondary mb-0">
+            Engagement and revenue for approved courses.
+        </p>
+
+    </div>
+
+    {% if course_rows %}
+
+    <div class="card border-0 shadow-sm mb-5">
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle mb-0">
+
+                <thead class="table-light">
+
+                    <tr>
+
+                        <th scope="col">
+                            Course
+                        </th>
+
+                        <th scope="col">
+                            Instructor
+                        </th>
+
+                        <th scope="col">
+                            Enrollments
+                        </th>
+
+                        <th scope="col">
+                            Reviews
+                        </th>
+
+                        <th scope="col">
+                            Rating
+                        </th>
+
+                        <th scope="col">
+                            Sales
+                        </th>
+
+                        <th scope="col">
+                            Revenue
+                        </th>
+
+                        <th scope="col">
+                            Certificates
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for row in course_rows %}
+
+                    <tr>
+
+                        <td>
+
+                            <div class="fw-semibold">
+                                {{ row.course.title }}
+                            </div>
+
+                            <div class="small text-secondary">
+                                {{ row.course.category.name }}
+                                ·
+                                {{ row.course.get_level_display }}
+                            </div>
+
+                        </td>
+
+                        <td>
+                            {{ row.course.instructor.email }}
+                        </td>
+
+                        <td>
+                            {{ row.enrollment_count }}
+                        </td>
+
+                        <td>
+                            {{ row.review_count }}
+                        </td>
+
+                        <td>
+
+                            {% if row.average_rating %}
+
+                            {{ row.average_rating|floatformat:1 }}/5
+
+                            {% else %}
+
+                            <span class="text-secondary">
+                                Not rated
+                            </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+                            {{ row.successful_sales }}
+                        </td>
+
+                        <td class="fw-semibold text-success">
+                            €{{ row.revenue|floatformat:2 }}
+                        </td>
+
+                        <td>
+                            {{ row.certificate_count }}
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    {% else %}
+
+    <div class="card border-0 shadow-sm mb-5">
+
+        <div class="card-body text-center py-5">
+
+            <h3 class="h5">
+                No approved courses
+            </h3>
+
+            <p class="text-secondary mb-0">
+                Approved courses will appear in the performance report.
+            </p>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+    <div class="mb-3">
+
+        <h2 class="h3 fw-bold mb-1">
+            Recent Successful Transactions
+        </h2>
+
+        <p class="text-secondary mb-0">
+            The ten most recent successful course purchases.
+        </p>
+
+    </div>
+
+    {% if recent_transactions %}
+
+    <div class="card border-0 shadow-sm">
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle mb-0">
+
+                <thead class="table-light">
+
+                    <tr>
+
+                        <th scope="col">
+                            Learner
+                        </th>
+
+                        <th scope="col">
+                            Course
+                        </th>
+
+                        <th scope="col">
+                            Instructor
+                        </th>
+
+                        <th scope="col">
+                            Amount
+                        </th>
+
+                        <th scope="col">
+                            Date
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for transaction in recent_transactions %}
+
+                    <tr>
+
+                        <td>
+                            {{ transaction.learner.email }}
+                        </td>
+
+                        <td>
+                            {{ transaction.course.title }}
+                        </td>
+
+                        <td>
+                            {{ transaction.course.instructor.email }}
+                        </td>
+
+                        <td class="fw-semibold text-success">
+                            €{{ transaction.amount|floatformat:2 }}
+                        </td>
+
+                        <td>
+
+                            {% if transaction.completed_at %}
+
+                            {{ transaction.completed_at|date:"d M Y H:i" }}
+
+                            {% else %}
+
+                            {{ transaction.created_at|date:"d M Y H:i" }}
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    {% else %}
+
+    <div class="card border-0 shadow-sm">
+
+        <div class="card-body text-center py-5">
+
+            <h3 class="h5">
+                No successful transactions
+            </h3>
+
+            <p class="text-secondary mb-0">
+                Successful course purchases will appear here.
+            </p>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+</div>
+{% endblock %}

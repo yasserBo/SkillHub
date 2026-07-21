@@ -3443,3 +3443,309 @@ class MonitorPaymentTransactionsTests(TestCase):
             ),
             fetch_redirect_response=False,
         )
+
+
+class GeneratePlatformReportsTests(TestCase):
+    """Tests for administrator platform reports."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.admin_user = User.objects.create_user(
+            email="reports.admin@example.com",
+            password=self.password,
+            role=User.Role.ADMIN,
+        )
+
+        self.instructor = User.objects.create_user(
+            email="reports.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner_one = User.objects.create_user(
+            email="reports.learner.one@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+            first_name="Report",
+            last_name="Learner",
+        )
+
+        self.learner_two = User.objects.create_user(
+            email="reports.learner.two@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.category = Category.objects.create(
+            name="Report Testing",
+        )
+
+        self.approved_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Reported Django Course",
+            description="Approved course used for reports.",
+            level=Course.Level.BEGINNER,
+            price="29.99",
+            duration_minutes=60,
+            learning_objectives="Generate reports",
+            status=Course.Status.APPROVED,
+        )
+
+        self.draft_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Draft Report Course",
+            description="Draft course used for reports.",
+            level=Course.Level.INTERMEDIATE,
+            price="0.00",
+            duration_minutes=90,
+            learning_objectives="Remain a draft",
+            status=Course.Status.DRAFT,
+        )
+
+        Enrollment.objects.create(
+            learner=self.learner_one,
+            course=self.approved_course,
+        )
+
+        Enrollment.objects.create(
+            learner=self.learner_two,
+            course=self.approved_course,
+        )
+
+        CourseReview.objects.create(
+            learner=self.learner_one,
+            course=self.approved_course,
+            rating=5,
+            comment="Excellent reported course.",
+        )
+
+        PaymentTransaction.objects.create(
+            learner=self.learner_one,
+            course=self.approved_course,
+            amount=Decimal("29.99"),
+            status=(
+                PaymentTransaction
+                .Status
+                .SUCCESSFUL
+            ),
+        )
+
+        PaymentTransaction.objects.create(
+            learner=self.learner_two,
+            course=self.approved_course,
+            amount=Decimal("29.99"),
+            status=(
+                PaymentTransaction
+                .Status
+                .PENDING
+            ),
+        )
+
+        Certificate.objects.create(
+            learner=self.learner_one,
+            course=self.approved_course,
+        )
+
+        self.report_url = reverse(
+            "courses:admin_platform_reports"
+        )
+
+    def test_administrator_can_open_platform_reports(self):
+        self.client.force_login(
+            self.admin_user
+        )
+
+        response = self.client.get(
+            self.report_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Platform Reports",
+        )
+
+    def test_report_contains_correct_summary(self):
+        self.client.force_login(
+            self.admin_user
+        )
+
+        response = self.client.get(
+            self.report_url
+        )
+
+        summary = response.context[
+            "summary"
+        ]
+
+        self.assertEqual(
+            summary["learner_count"],
+            2,
+        )
+
+        self.assertEqual(
+            summary["instructor_count"],
+            1,
+        )
+
+        self.assertEqual(
+            summary["course_count"],
+            2,
+        )
+
+        self.assertEqual(
+            summary["approved_course_count"],
+            1,
+        )
+
+        self.assertEqual(
+            summary["enrollment_count"],
+            2,
+        )
+
+        self.assertEqual(
+            summary["review_count"],
+            1,
+        )
+
+        self.assertEqual(
+            summary["certificate_count"],
+            1,
+        )
+
+        self.assertEqual(
+            summary["successful_sales"],
+            1,
+        )
+
+        self.assertEqual(
+            summary["total_revenue"],
+            Decimal("29.99"),
+        )
+
+        self.assertEqual(
+            summary["pending_payment_count"],
+            1,
+        )
+
+    def test_course_performance_contains_correct_data(self):
+        self.client.force_login(
+            self.admin_user
+        )
+
+        response = self.client.get(
+            self.report_url
+        )
+
+        course_rows = response.context[
+            "course_rows"
+        ]
+
+        self.assertEqual(
+            len(course_rows),
+            1,
+        )
+
+        row = course_rows[0]
+
+        self.assertEqual(
+            row["course"],
+            self.approved_course,
+        )
+
+        self.assertEqual(
+            row["enrollment_count"],
+            2,
+        )
+
+        self.assertEqual(
+            row["review_count"],
+            1,
+        )
+
+        self.assertEqual(
+            row["successful_sales"],
+            1,
+        )
+
+        self.assertEqual(
+            row["revenue"],
+            Decimal("29.99"),
+        )
+
+        self.assertEqual(
+            row["certificate_count"],
+            1,
+        )
+
+    def test_administrator_can_download_csv_report(self):
+        self.client.force_login(
+            self.admin_user
+        )
+
+        response = self.client.get(
+            self.report_url,
+            {
+                "format": "csv",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertIn(
+            "text/csv",
+            response["Content-Type"],
+        )
+
+        self.assertIn(
+            "attachment;",
+            response[
+                "Content-Disposition"
+            ],
+        )
+
+        content = response.content.decode(
+            "utf-8-sig"
+        )
+
+        self.assertIn(
+            "SkillHub Platform Report",
+            content,
+        )
+
+        self.assertIn(
+            "Reported Django Course",
+            content,
+        )
+
+        self.assertIn(
+            "29.99",
+            content,
+        )
+
+    def test_instructor_cannot_access_platform_reports(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.report_url
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "accounts:dashboard",
+            ),
+            fetch_redirect_response=False,
+        )

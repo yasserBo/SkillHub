@@ -42,6 +42,11 @@ urlpatterns = [
         name="admin_payment_transactions",
     ),
     path(
+        "administration/reports/",
+        views.admin_platform_reports,
+        name="admin_platform_reports",
+    ),
+    path(
         "<int:course_id>/",
         views.course_detail,
         name="course_detail",

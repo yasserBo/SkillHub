@@ -7,6 +7,8 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.contrib.auth.decorators import login_required
 import uuid
+import csv
+
 
 
 from .forms import (
@@ -35,8 +37,8 @@ from .models import (
 
 from django.db import transaction
 from django.utils import timezone
-from django.db.models import Avg
-
+from django.db.models import Avg, Count, DecimalField, Sum, Value
+from django.utils.dateparse import parse_date
 from io import BytesIO
 
 from django.http import HttpResponse
@@ -2171,5 +2173,634 @@ def admin_payment_transactions(request):
                     "successful_revenue"
                 ]
             ),
+        },
+    )
+
+def _apply_report_date_filter(
+    queryset,
+    field_name,
+    start_date,
+    end_date,
+):
+    """Apply optional start and end dates to a queryset."""
+
+    filters = {}
+
+    if start_date:
+        filters[f"{field_name}__date__gte"] = start_date
+
+    if end_date:
+        filters[f"{field_name}__date__lte"] = end_date
+
+    if filters:
+        queryset = queryset.filter(**filters)
+
+    return queryset
+
+
+@login_required
+def admin_platform_reports(request):
+    """Display and export platform reports for administrators."""
+
+    if (
+        request.user.role != User.Role.ADMIN
+        and not request.user.is_superuser
+    ):
+        return redirect("accounts:dashboard")
+
+    start_value = request.GET.get(
+        "start_date",
+        "",
+    ).strip()
+
+    end_value = request.GET.get(
+        "end_date",
+        "",
+    ).strip()
+
+    start_date = (
+        parse_date(start_value)
+        if start_value
+        else None
+    )
+
+    end_date = (
+        parse_date(end_value)
+        if end_value
+        else None
+    )
+
+    invalid_date_filter = False
+
+    if start_value and start_date is None:
+        invalid_date_filter = True
+        start_value = ""
+
+    if end_value and end_date is None:
+        invalid_date_filter = True
+        end_value = ""
+
+    if (
+        start_date
+        and end_date
+        and start_date > end_date
+    ):
+        invalid_date_filter = True
+
+        start_date = None
+        end_date = None
+        start_value = ""
+        end_value = ""
+
+    if invalid_date_filter:
+        messages.warning(
+            request,
+            (
+                "The selected report dates were invalid. "
+                "The complete report is being displayed."
+            ),
+        )
+
+    learners = User.objects.filter(
+        role=User.Role.LEARNER,
+    )
+
+    instructors = User.objects.filter(
+        role=User.Role.INSTRUCTOR,
+    )
+
+    courses = Course.objects.all()
+
+    approved_courses = Course.objects.filter(
+        status=Course.Status.APPROVED,
+    )
+
+    enrollments = Enrollment.objects.all()
+
+    reviews = CourseReview.objects.all()
+
+    certificates = Certificate.objects.all()
+
+    all_transactions = (
+        PaymentTransaction.objects.all()
+    )
+
+    successful_transactions = (
+        all_transactions.filter(
+            status=(
+                PaymentTransaction
+                .Status
+                .SUCCESSFUL
+            ),
+        )
+    )
+
+    pending_transactions = (
+        all_transactions.filter(
+            status=(
+                PaymentTransaction
+                .Status
+                .PENDING
+            ),
+        )
+    )
+
+    failed_transactions = (
+        all_transactions.filter(
+            status=(
+                PaymentTransaction
+                .Status
+                .FAILED
+            ),
+        )
+    )
+
+    learners = _apply_report_date_filter(
+        learners,
+        "date_joined",
+        start_date,
+        end_date,
+    )
+
+    instructors = _apply_report_date_filter(
+        instructors,
+        "date_joined",
+        start_date,
+        end_date,
+    )
+
+    courses = _apply_report_date_filter(
+        courses,
+        "created_at",
+        start_date,
+        end_date,
+    )
+
+    approved_courses_in_period = (
+        _apply_report_date_filter(
+            approved_courses,
+            "created_at",
+            start_date,
+            end_date,
+        )
+    )
+
+    enrollments = _apply_report_date_filter(
+        enrollments,
+        "enrolled_at",
+        start_date,
+        end_date,
+    )
+
+    reviews = _apply_report_date_filter(
+        reviews,
+        "created_at",
+        start_date,
+        end_date,
+    )
+
+    certificates = _apply_report_date_filter(
+        certificates,
+        "issued_at",
+        start_date,
+        end_date,
+    )
+
+    successful_transactions = (
+        _apply_report_date_filter(
+            successful_transactions,
+            "created_at",
+            start_date,
+            end_date,
+        )
+    )
+
+    pending_transactions = (
+        _apply_report_date_filter(
+            pending_transactions,
+            "created_at",
+            start_date,
+            end_date,
+        )
+    )
+
+    failed_transactions = (
+        _apply_report_date_filter(
+            failed_transactions,
+            "created_at",
+            start_date,
+            end_date,
+        )
+    )
+
+    payment_summary = (
+        successful_transactions.aggregate(
+            revenue=Coalesce(
+                Sum("amount"),
+                Value(Decimal("0.00")),
+                output_field=DecimalField(
+                    max_digits=14,
+                    decimal_places=2,
+                ),
+            ),
+            sales=Count("pk"),
+            paying_learners=Count(
+                "learner",
+                distinct=True,
+            ),
+        )
+    )
+
+    total_revenue = payment_summary["revenue"]
+    successful_sales = payment_summary["sales"]
+    paying_learners = payment_summary[
+        "paying_learners"
+    ]
+
+    if successful_sales:
+        average_sale = (
+            total_revenue
+            / Decimal(successful_sales)
+        )
+    else:
+        average_sale = Decimal("0.00")
+
+    enrollment_statistics = {
+        row["course_id"]: row["total"]
+        for row in (
+            enrollments
+            .values("course_id")
+            .annotate(total=Count("pk"))
+        )
+    }
+
+    review_statistics = {
+        row["course_id"]: {
+            "review_count": row[
+                "review_count"
+            ],
+            "average_rating": row[
+                "average_rating"
+            ],
+        }
+        for row in (
+            reviews
+            .values("course_id")
+            .annotate(
+                review_count=Count("pk"),
+                average_rating=Avg("rating"),
+            )
+        )
+    }
+
+    payment_statistics = {
+        row["course_id"]: {
+            "sales": row["sales"],
+            "revenue": row["revenue"],
+        }
+        for row in (
+            successful_transactions
+            .values("course_id")
+            .annotate(
+                sales=Count("pk"),
+                revenue=Coalesce(
+                    Sum("amount"),
+                    Value(Decimal("0.00")),
+                    output_field=DecimalField(
+                        max_digits=14,
+                        decimal_places=2,
+                    ),
+                ),
+            )
+        )
+    }
+
+    certificate_statistics = {
+        row["course_id"]: row["total"]
+        for row in (
+            certificates
+            .values("course_id")
+            .annotate(total=Count("pk"))
+        )
+    }
+
+    course_rows = []
+
+    report_courses = (
+        approved_courses
+        .select_related(
+            "category",
+            "instructor",
+        )
+        .order_by("title")
+    )
+
+    for course in report_courses:
+        review_data = review_statistics.get(
+            course.pk,
+            {},
+        )
+
+        payment_data = payment_statistics.get(
+            course.pk,
+            {},
+        )
+
+        course_rows.append(
+            {
+                "course": course,
+                "enrollment_count": (
+                    enrollment_statistics.get(
+                        course.pk,
+                        0,
+                    )
+                ),
+                "review_count": (
+                    review_data.get(
+                        "review_count",
+                        0,
+                    )
+                ),
+                "average_rating": (
+                    review_data.get(
+                        "average_rating"
+                    )
+                ),
+                "successful_sales": (
+                    payment_data.get(
+                        "sales",
+                        0,
+                    )
+                ),
+                "revenue": (
+                    payment_data.get(
+                        "revenue",
+                        Decimal("0.00"),
+                    )
+                ),
+                "certificate_count": (
+                    certificate_statistics.get(
+                        course.pk,
+                        0,
+                    )
+                ),
+            }
+        )
+
+    course_rows.sort(
+        key=lambda row: (
+            row["revenue"],
+            row["enrollment_count"],
+        ),
+        reverse=True,
+    )
+
+    recent_transactions = (
+        successful_transactions
+        .select_related(
+            "learner",
+            "course",
+            "course__instructor",
+        )
+        .order_by(
+            "-completed_at",
+            "-created_at",
+        )[:10]
+    )
+
+    summary = {
+        "learner_count": learners.count(),
+        "instructor_count": instructors.count(),
+        "course_count": courses.count(),
+        "approved_course_count": (
+            approved_courses_in_period.count()
+        ),
+        "enrollment_count": enrollments.count(),
+        "review_count": reviews.count(),
+        "certificate_count": (
+            certificates.count()
+        ),
+        "successful_sales": successful_sales,
+        "pending_payment_count": (
+            pending_transactions.count()
+        ),
+        "failed_payment_count": (
+            failed_transactions.count()
+        ),
+        "paying_learners": paying_learners,
+        "total_revenue": total_revenue,
+        "average_sale": average_sale,
+    }
+
+    if request.GET.get("format") == "csv":
+        response = HttpResponse(
+            content_type=(
+                "text/csv; charset=utf-8"
+            ),
+        )
+
+        response["Content-Disposition"] = (
+            'attachment; '
+            'filename="skillhub-platform-report.csv"'
+        )
+
+        response.write("\ufeff")
+
+        writer = csv.writer(response)
+
+        writer.writerow(
+            [
+                "SkillHub Platform Report",
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Start date",
+                start_value or "All time",
+            ]
+        )
+
+        writer.writerow(
+            [
+                "End date",
+                end_value or "All time",
+            ]
+        )
+
+        writer.writerow([])
+
+        writer.writerow(
+            [
+                "Metric",
+                "Value",
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Learners",
+                summary["learner_count"],
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Instructors",
+                summary["instructor_count"],
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Courses created",
+                summary["course_count"],
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Approved courses",
+                summary[
+                    "approved_course_count"
+                ],
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Enrollments",
+                summary["enrollment_count"],
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Reviews",
+                summary["review_count"],
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Certificates",
+                summary[
+                    "certificate_count"
+                ],
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Successful sales",
+                summary["successful_sales"],
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Successful revenue",
+                summary["total_revenue"],
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Pending payments",
+                summary[
+                    "pending_payment_count"
+                ],
+            ]
+        )
+
+        writer.writerow(
+            [
+                "Failed payments",
+                summary[
+                    "failed_payment_count"
+                ],
+            ]
+        )
+
+        writer.writerow([])
+
+        writer.writerow(
+            [
+                "Course",
+                "Instructor",
+                "Category",
+                "Enrollments",
+                "Reviews",
+                "Average rating",
+                "Successful sales",
+                "Revenue",
+                "Certificates",
+            ]
+        )
+
+        for row in course_rows:
+            writer.writerow(
+                [
+                    row["course"].title,
+                    row[
+                        "course"
+                    ].instructor.email,
+                    row[
+                        "course"
+                    ].category.name,
+                    row["enrollment_count"],
+                    row["review_count"],
+                    (
+                        round(
+                            row[
+                                "average_rating"
+                            ],
+                            2,
+                        )
+                        if row[
+                            "average_rating"
+                        ] is not None
+                        else ""
+                    ),
+                    row["successful_sales"],
+                    row["revenue"],
+                    row[
+                        "certificate_count"
+                    ],
+                ]
+            )
+
+        return response
+
+    query_parameters = request.GET.copy()
+
+    query_parameters.pop(
+        "format",
+        None,
+    )
+
+    report_query = (
+        query_parameters.urlencode()
+    )
+
+    filters_are_active = bool(
+        start_date or end_date
+    )
+
+    return render(
+        request,
+        "courses/admin_platform_reports.html",
+        {
+            "summary": summary,
+            "course_rows": course_rows,
+            "recent_transactions": (
+                recent_transactions
+            ),
+            "start_value": start_value,
+            "end_value": end_value,
+            "filters_are_active": (
+                filters_are_active
+            ),
+            "report_query": report_query,
         },
     )
