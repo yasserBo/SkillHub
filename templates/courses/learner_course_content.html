@@ -18,7 +18,8 @@
         </h1>
 
         <p class="text-secondary mb-0">
-            Access course lessons and complete published quizzes.
+            Access course lessons, complete quizzes and earn
+            your certificate.
         </p>
 
     </div>
@@ -89,6 +90,7 @@
 
     </div>
 
+    <!-- Lessons -->
     <div class="mb-3">
 
         <h2 class="h3 fw-bold mb-1">
@@ -182,7 +184,9 @@
 
     {% endfor %}
 
-    <div class="d-flex flex-column flex-md-row
+    <!-- Quizzes -->
+    <div class="d-flex flex-column
+                flex-md-row
                 justify-content-between
                 align-items-md-center
                 gap-3 mt-5 mb-3">
@@ -228,7 +232,8 @@
                         </span>
 
                         <span class="badge text-bg-light">
-                            Pass: {{ card.quiz.passing_score }}%
+                            Pass:
+                            {{ card.quiz.passing_score }}%
                         </span>
 
                     </div>
@@ -265,6 +270,7 @@
                         </div>
 
                         <div class="small">
+
                             {% if card.latest_attempt.passed %}
                             Passed
                             {% else %}
@@ -274,6 +280,7 @@
                             ·
 
                             {{ card.latest_attempt.completed_at|date:"d M Y H:i" }}
+
                         </div>
 
                     </div>
@@ -288,11 +295,13 @@
                     <div class="mt-auto">
 
                         <a href="{% url 'courses:quiz_take' card.quiz.pk %}" class="btn btn-primary w-100">
+
                             {% if card.latest_attempt %}
                             Try quiz again
                             {% else %}
                             Start quiz
                             {% endif %}
+
                         </a>
 
                     </div>
@@ -326,6 +335,129 @@
     </div>
 
     {% endif %}
+
+    <!-- Certificate -->
+    <div class="mt-5 mb-3">
+
+        <h2 class="h3 fw-bold mb-1">
+            Course Certificate
+        </h2>
+
+        <p class="text-secondary mb-0">
+            Pass every published quiz to unlock your certificate.
+        </p>
+
+    </div>
+
+    <div class="card border-0 shadow-sm">
+
+        <div class="card-body p-4 p-md-5">
+
+            <div class="row align-items-center g-4">
+
+                <div class="col-md-8">
+
+                    {% if certificate_eligible %}
+
+                    <span class="badge text-bg-success mb-3">
+                        Certificate unlocked
+                    </span>
+
+                    <h3 class="h4 fw-bold">
+                        Congratulations!
+                    </h3>
+
+                    <p class="text-secondary mb-3">
+                        You passed every published quiz and completed
+                        the course requirements.
+                    </p>
+
+                    <p class="mb-0">
+
+                        <strong>Quiz progress:</strong>
+
+                        {{ passed_quiz_count }}
+                        of
+                        {{ published_quiz_count }}
+                        passed
+
+                    </p>
+
+                    {% if certificate %}
+
+                    <p class="small text-secondary mt-2 mb-0">
+
+                        Certificate issued:
+                        {{ certificate.issued_at|date:"d M Y" }}
+
+                    </p>
+
+                    {% endif %}
+
+                    {% else %}
+
+                    <span class="badge text-bg-warning mb-3">
+                        Certificate locked
+                    </span>
+
+                    <h3 class="h4 fw-bold">
+                        Complete the course quizzes
+                    </h3>
+
+                    {% if published_quiz_count %}
+
+                    <p class="text-secondary mb-3">
+                        Pass every published quiz to unlock
+                        the certificate.
+                    </p>
+
+                    <p class="mb-0">
+
+                        <strong>Quiz progress:</strong>
+
+                        {{ passed_quiz_count }}
+                        of
+                        {{ published_quiz_count }}
+                        passed
+
+                    </p>
+
+                    {% else %}
+
+                    <p class="text-secondary mb-0">
+                        This course does not have any published
+                        quizzes yet.
+                    </p>
+
+                    {% endif %}
+
+                    {% endif %}
+
+                </div>
+
+                <div class="col-md-4 text-md-end">
+
+                    {% if certificate_eligible %}
+
+                    <a href="{% url 'courses:certificate_download' course.pk %}" class="btn btn-success btn-lg">
+                        Download certificate
+                    </a>
+
+                    {% else %}
+
+                    <button type="button" class="btn btn-secondary btn-lg" disabled>
+                        Certificate locked
+                    </button>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
 
 </div>
 {% endblock %}

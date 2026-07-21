@@ -10,6 +10,7 @@ from django.test import TestCase, override_settings
 
 from .models import (
     Category,
+    Certificate,
     Course,
     CourseReview,
     CourseSection,
@@ -2349,6 +2350,171 @@ class CompleteCourseQuizTests(TestCase):
 
         response = self.client.get(
             self.quiz_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+class CourseCertificateTests(TestCase):
+    """Tests for generating and downloading course certificates."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="certificate.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner = User.objects.create_user(
+            email="certificate.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+            first_name="Certificate",
+            last_name="Learner",
+        )
+
+        self.other_learner = User.objects.create_user(
+            email="certificate.other@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.category = Category.objects.create(
+            name="Certificate Testing",
+        )
+
+        self.course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Certificate Django Course",
+            description="Course used for certificate testing.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            duration_minutes=60,
+            learning_objectives="Earn a certificate",
+            status=Course.Status.APPROVED,
+        )
+
+        Enrollment.objects.create(
+            learner=self.learner,
+            course=self.course,
+        )
+
+        self.quiz = Quiz.objects.create(
+            course=self.course,
+            title="Certificate Final Quiz",
+            description="Pass to unlock the certificate.",
+            passing_score=60,
+            is_published=True,
+        )
+
+        self.question = QuizQuestion.objects.create(
+            quiz=self.quiz,
+            text="Which framework is SkillHub using?",
+            option_a="Flask",
+            option_b="Django",
+            option_c="Laravel",
+            option_d="Spring",
+            correct_option="B",
+            order=1,
+        )
+
+        self.download_url = reverse(
+            "courses:certificate_download",
+            args=[self.course.pk],
+        )
+
+    def create_passed_attempt(self):
+        return QuizAttempt.objects.create(
+            learner=self.learner,
+            quiz=self.quiz,
+            score=100,
+            total_questions=1,
+            correct_answers=1,
+            passed=True,
+        )
+
+    def test_learner_must_pass_quiz_before_download(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.get(
+            self.download_url
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "courses:learner_course_content",
+                args=[self.course.pk],
+            ),
+        )
+
+        self.assertFalse(
+            Certificate.objects.exists()
+        )
+
+    def test_completed_learner_can_download_pdf(self):
+        self.create_passed_attempt()
+
+        self.client.force_login(self.learner)
+
+        response = self.client.get(
+            self.download_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            response["Content-Type"],
+            "application/pdf",
+        )
+
+        self.assertIn(
+            "attachment;",
+            response["Content-Disposition"],
+        )
+
+        self.assertTrue(
+            response.content.startswith(b"%PDF")
+        )
+
+        self.assertTrue(
+            Certificate.objects.filter(
+                learner=self.learner,
+                course=self.course,
+            ).exists()
+        )
+
+    def test_downloading_twice_does_not_duplicate_certificate(self):
+        self.create_passed_attempt()
+
+        self.client.force_login(self.learner)
+
+        self.client.get(self.download_url)
+        self.client.get(self.download_url)
+
+        self.assertEqual(
+            Certificate.objects.filter(
+                learner=self.learner,
+                course=self.course,
+            ).count(),
+            1,
+        )
+
+    def test_non_enrolled_learner_cannot_download_certificate(self):
+        self.client.force_login(
+            self.other_learner
+        )
+
+        response = self.client.get(
+            self.download_url
         )
 
         self.assertEqual(

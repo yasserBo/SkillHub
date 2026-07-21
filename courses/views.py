@@ -18,6 +18,7 @@ from .forms import (
 
 from .models import (
     Category,
+    Certificate,
     Course,
     CourseReview,
     CourseSection,
@@ -33,6 +34,16 @@ from .models import (
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Avg
+
+from io import BytesIO
+
+from django.http import HttpResponse
+from django.utils.text import slugify
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.utils import simpleSplit
+from reportlab.pdfgen import canvas
 
 
 
@@ -614,9 +625,43 @@ def course_purchase(request, course_id):
         },
     )
 
+
+def _learner_has_completed_course(learner, course):
+    """Return True when every published course quiz has been passed."""
+
+    published_quiz_ids = set(
+        Quiz.objects.filter(
+            course=course,
+            is_published=True,
+        ).values_list(
+            "pk",
+            flat=True,
+        )
+    )
+
+    if not published_quiz_ids:
+        return False
+
+    passed_quiz_ids = set(
+        QuizAttempt.objects.filter(
+            learner=learner,
+            quiz_id__in=published_quiz_ids,
+            passed=True,
+        )
+        .values_list(
+            "quiz_id",
+            flat=True,
+        )
+        .distinct()
+    )
+
+    return published_quiz_ids.issubset(
+        passed_quiz_ids
+    )
+
 @login_required
 def learner_course_content(request, course_id):
-    """Display lessons and published quizzes to an enrolled learner."""
+    """Display lessons, quizzes and certificate status."""
 
     if request.user.role != User.Role.LEARNER:
         return redirect("accounts:dashboard")
@@ -667,6 +712,44 @@ def learner_course_content(request, course_id):
             }
         )
 
+    published_quiz_ids = {
+        quiz.pk
+        for quiz in published_quizzes
+    }
+
+    passed_quiz_ids = set(
+        QuizAttempt.objects.filter(
+            learner=request.user,
+            quiz_id__in=published_quiz_ids,
+            passed=True,
+        )
+        .values_list(
+            "quiz_id",
+            flat=True,
+        )
+        .distinct()
+    )
+
+    published_quiz_count = len(
+        published_quiz_ids
+    )
+
+    passed_quiz_count = len(
+        passed_quiz_ids
+    )
+
+    certificate_eligible = (
+        published_quiz_count > 0
+        and published_quiz_ids.issubset(
+            passed_quiz_ids
+        )
+    )
+
+    certificate = Certificate.objects.filter(
+        learner=request.user,
+        course=course,
+    ).first()
+
     return render(
         request,
         "courses/learner_course_content.html",
@@ -675,6 +758,10 @@ def learner_course_content(request, course_id):
             "enrollment": enrollment,
             "sections": sections,
             "quiz_cards": quiz_cards,
+            "published_quiz_count": published_quiz_count,
+            "passed_quiz_count": passed_quiz_count,
+            "certificate_eligible": certificate_eligible,
+            "certificate": certificate,
         },
     )
 
@@ -1225,3 +1312,326 @@ def quiz_result(request, attempt_id):
             "answer_rows": answer_rows,
         },
     )
+
+@login_required
+def certificate_download(request, course_id):
+    """Generate and download a learner's course certificate."""
+
+    if request.user.role != User.Role.LEARNER:
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course.objects.select_related(
+            "category",
+            "instructor",
+        ),
+        pk=course_id,
+        status=Course.Status.APPROVED,
+        enrollments__learner=request.user,
+    )
+
+    if not _learner_has_completed_course(
+        request.user,
+        course,
+    ):
+        messages.warning(
+            request,
+            (
+                "You must pass every published quiz "
+                "before downloading the certificate."
+            ),
+        )
+
+        return redirect(
+            "courses:learner_course_content",
+            course_id=course.pk,
+        )
+
+    certificate, _created = (
+        Certificate.objects.get_or_create(
+            learner=request.user,
+            course=course,
+        )
+    )
+
+    learner_name = (
+        request.user.get_full_name().strip()
+        or request.user.email
+    )
+
+    instructor_name = (
+        course.instructor.get_full_name().strip()
+        or course.instructor.email
+    )
+
+    issue_date = timezone.localtime(
+        certificate.issued_at
+    ).strftime("%d %B %Y")
+
+    buffer = BytesIO()
+
+    page_width, page_height = landscape(A4)
+
+    pdf = canvas.Canvas(
+        buffer,
+        pagesize=landscape(A4),
+    )
+
+    pdf.setTitle(
+        f"SkillHub Certificate - {course.title}"
+    )
+
+    # Background
+    pdf.setFillColor(
+        colors.HexColor("#F8FAFC")
+    )
+    pdf.rect(
+        0,
+        0,
+        page_width,
+        page_height,
+        fill=1,
+        stroke=0,
+    )
+
+    # Outer border
+    pdf.setStrokeColor(
+        colors.HexColor("#0D6EFD")
+    )
+    pdf.setLineWidth(5)
+
+    pdf.rect(
+        25,
+        25,
+        page_width - 50,
+        page_height - 50,
+        fill=0,
+        stroke=1,
+    )
+
+    # Inner border
+    pdf.setStrokeColor(
+        colors.HexColor("#94A3B8")
+    )
+    pdf.setLineWidth(1.5)
+
+    pdf.rect(
+        38,
+        38,
+        page_width - 76,
+        page_height - 76,
+        fill=0,
+        stroke=1,
+    )
+
+    # SkillHub heading
+    pdf.setFillColor(
+        colors.HexColor("#0D6EFD")
+    )
+    pdf.setFont(
+        "Helvetica-Bold",
+        24,
+    )
+
+    pdf.drawCentredString(
+        page_width / 2,
+        page_height - 90,
+        "SkillHub",
+    )
+
+    pdf.setFillColor(
+        colors.HexColor("#0F172A")
+    )
+    pdf.setFont(
+        "Helvetica-Bold",
+        35,
+    )
+
+    pdf.drawCentredString(
+        page_width / 2,
+        page_height - 145,
+        "CERTIFICATE OF COMPLETION",
+    )
+
+    pdf.setFillColor(
+        colors.HexColor("#475569")
+    )
+    pdf.setFont(
+        "Helvetica",
+        15,
+    )
+
+    pdf.drawCentredString(
+        page_width / 2,
+        page_height - 190,
+        "This certificate is proudly presented to",
+    )
+
+    # Learner name
+    pdf.setFillColor(
+        colors.HexColor("#0D6EFD")
+    )
+    pdf.setFont(
+        "Helvetica-Bold",
+        28,
+    )
+
+    learner_lines = simpleSplit(
+        learner_name,
+        "Helvetica-Bold",
+        28,
+        page_width - 160,
+    )
+
+    learner_y = page_height - 235
+
+    for line in learner_lines:
+        pdf.drawCentredString(
+            page_width / 2,
+            learner_y,
+            line,
+        )
+
+        learner_y -= 32
+
+    # Course completion text
+    pdf.setFillColor(
+        colors.HexColor("#475569")
+    )
+    pdf.setFont(
+        "Helvetica",
+        15,
+    )
+
+    text_y = learner_y - 10
+
+    pdf.drawCentredString(
+        page_width / 2,
+        text_y,
+        "for successfully completing the SkillHub course",
+    )
+
+    course_lines = simpleSplit(
+        course.title,
+        "Helvetica-Bold",
+        23,
+        page_width - 160,
+    )
+
+    course_y = text_y - 42
+
+    pdf.setFillColor(
+        colors.HexColor("#0F172A")
+    )
+    pdf.setFont(
+        "Helvetica-Bold",
+        23,
+    )
+
+    for line in course_lines:
+        pdf.drawCentredString(
+            page_width / 2,
+            course_y,
+            line,
+        )
+
+        course_y -= 28
+
+    # Bottom information
+    information_y = 105
+
+    pdf.setStrokeColor(
+        colors.HexColor("#94A3B8")
+    )
+    pdf.setLineWidth(1)
+
+    pdf.line(
+        95,
+        information_y + 20,
+        285,
+        information_y + 20,
+    )
+
+    pdf.line(
+        page_width - 285,
+        information_y + 20,
+        page_width - 95,
+        information_y + 20,
+    )
+
+    pdf.setFillColor(
+        colors.HexColor("#0F172A")
+    )
+    pdf.setFont(
+        "Helvetica-Bold",
+        11,
+    )
+
+    pdf.drawCentredString(
+        190,
+        information_y,
+        issue_date,
+    )
+
+    pdf.drawCentredString(
+        page_width - 190,
+        information_y,
+        instructor_name,
+    )
+
+    pdf.setFillColor(
+        colors.HexColor("#64748B")
+    )
+    pdf.setFont(
+        "Helvetica",
+        9,
+    )
+
+    pdf.drawCentredString(
+        190,
+        information_y - 15,
+        "Date issued",
+    )
+
+    pdf.drawCentredString(
+        page_width - 190,
+        information_y - 15,
+        "Course instructor",
+    )
+
+    # Certificate number
+    pdf.setFont(
+        "Helvetica",
+        8,
+    )
+
+    pdf.drawCentredString(
+        page_width / 2,
+        60,
+        (
+            "Certificate number: "
+            f"{certificate.certificate_number}"
+        ),
+    )
+
+    pdf.showPage()
+    pdf.save()
+
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
+    filename = (
+        f"skillhub-certificate-"
+        f"{slugify(course.title) or course.pk}.pdf"
+    )
+
+    response = HttpResponse(
+        pdf_bytes,
+        content_type="application/pdf",
+    )
+
+    response["Content-Disposition"] = (
+        f'attachment; filename="{filename}"'
+    )
+
+    return response

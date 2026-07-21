@@ -3,6 +3,7 @@ from django.contrib import admin, messages
 from .forms import CourseAdminReviewForm
 from .models import (
     Category,
+    Certificate,
     Course,
     CourseReview,
     CourseSection,
@@ -371,4 +372,31 @@ class QuizAnswerAdmin(admin.ModelAdmin):
         "question",
         "selected_option",
         "is_correct",
+    )
+
+@admin.register(Certificate)
+class CertificateAdmin(admin.ModelAdmin):
+    list_display = (
+        "certificate_number",
+        "learner",
+        "course",
+        "issued_at",
+    )
+
+    list_filter = (
+        "issued_at",
+        "course",
+    )
+
+    search_fields = (
+        "certificate_number",
+        "learner__email",
+        "course__title",
+    )
+
+    readonly_fields = (
+        "certificate_number",
+        "learner",
+        "course",
+        "issued_at",
     )

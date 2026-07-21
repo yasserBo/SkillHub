@@ -594,3 +594,45 @@ class QuizAnswer(models.Model):
             f"{self.attempt.learner.email} - "
             f"Question {self.question.order}"
         )
+
+class Certificate(models.Model):
+    """Certificate issued after a learner completes a course."""
+
+    learner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="certificates",
+    )
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="certificates",
+    )
+
+    certificate_number = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+    )
+
+    issued_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ("-issued_at",)
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=("learner", "course"),
+                name="unique_certificate_per_learner_course",
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.learner.email} - "
+            f"{self.course.title} - "
+            f"{self.certificate_number}"
+        )

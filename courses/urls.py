@@ -17,6 +17,11 @@ urlpatterns = [
         name="learner_course_content",
     ),
     path(
+        "learning/<int:course_id>/certificate/",
+        views.certificate_download,
+        name="certificate_download",
+    ),
+    path(
         "learning/lessons/<int:lesson_id>/",
         views.lesson_watch,
         name="lesson_watch",
