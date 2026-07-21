@@ -4,6 +4,7 @@ from django.core.validators import (
     FileExtensionValidator,
     MinValueValidator,
 )
+import uuid
 
 def course_video_upload_path(instance, filename):
     """Store course videos in folders organized by course and section."""
@@ -275,3 +276,59 @@ class Enrollment(models.Model):
 
     def __str__(self):
         return f"{self.learner.email} - {self.course.title}"
+
+class PaymentTransaction(models.Model):
+    """A simulated payment for purchasing a SkillHub course."""
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        SUCCESSFUL = "SUCCESSFUL", "Successful"
+        FAILED = "FAILED", "Failed"
+
+    learner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="payment_transactions",
+    )
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="payment_transactions",
+    )
+
+    reference = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+    )
+
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return (
+            f"{self.learner.email} - "
+            f"{self.course.title} - "
+            f"{self.get_status_display()}"
+        )

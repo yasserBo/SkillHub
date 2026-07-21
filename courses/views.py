@@ -12,13 +12,21 @@ from .forms import (
     CourseSectionForm,
     VideoLessonUploadForm,
 )
+
 from .models import (
     Category,
     Course,
     CourseSection,
     Enrollment,
+    PaymentTransaction,
     VideoLesson,
 )
+
+from django.db import transaction
+from django.utils import timezone
+
+
+
 @login_required
 def instructor_course_list(request):
     """Display courses belonging to the logged-in instructor."""
@@ -299,6 +307,7 @@ def course_enroll(request, course_id):
         Course,
         pk=course_id,
         status=Course.Status.APPROVED,
+        price=0,
     )
 
     enrollment, created = Enrollment.objects.get_or_create(
@@ -489,5 +498,84 @@ def video_lesson_upload(request, course_id):
         {
             "course": course,
             "form": form,
+        },
+    )
+
+@login_required
+def course_purchase(request, course_id):
+    """Simulate payment and enroll a learner in a paid course."""
+
+    if request.user.role != User.Role.LEARNER:
+        messages.warning(
+            request,
+            "Only learner accounts can purchase courses.",
+        )
+
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course.objects.select_related(
+            "category",
+            "instructor",
+        ),
+        pk=course_id,
+        status=Course.Status.APPROVED,
+        price__gt=0,
+    )
+
+    if Enrollment.objects.filter(
+        learner=request.user,
+        course=course,
+    ).exists():
+        messages.info(
+            request,
+            "You are already enrolled in this course.",
+        )
+
+        return redirect(
+            "courses:course_detail",
+            course_id=course.pk,
+        )
+
+    if request.method == "POST":
+        with transaction.atomic():
+            existing_payment = PaymentTransaction.objects.filter(
+                learner=request.user,
+                course=course,
+                status=PaymentTransaction.Status.SUCCESSFUL,
+            ).first()
+
+            if existing_payment is None:
+                PaymentTransaction.objects.create(
+                    learner=request.user,
+                    course=course,
+                    amount=course.price,
+                    status=PaymentTransaction.Status.SUCCESSFUL,
+                    completed_at=timezone.now(),
+                )
+
+            Enrollment.objects.get_or_create(
+                learner=request.user,
+                course=course,
+            )
+
+        messages.success(
+            request,
+            (
+                "Payment completed successfully. "
+                "You are now enrolled in the course."
+            ),
+        )
+
+        return redirect(
+            "courses:course_detail",
+            course_id=course.pk,
+        )
+
+    return render(
+        request,
+        "courses/course_purchase.html",
+        {
+            "course": course,
         },
     )

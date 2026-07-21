@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}
+Purchase {{ course.title }} | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 p-md-5">
+
+                    <a href="{% url 'courses:course_detail' course.pk %}" class="text-decoration-none">
+                        ← Back to course
+                    </a>
+
+                    <h1 class="h3 fw-bold mt-3">
+                        Confirm your purchase
+                    </h1>
+
+                    <p class="text-secondary">
+                        Review the course information before continuing.
+                    </p>
+
+                    <div class="border rounded p-4 my-4">
+
+                        <h2 class="h5 fw-bold">
+                            {{ course.title }}
+                        </h2>
+
+                        <p class="text-secondary">
+                            {{ course.description|truncatewords:25 }}
+                        </p>
+
+                        <p class="mb-1">
+                            <strong>Instructor:</strong>
+
+                            {% if course.instructor.get_full_name %}
+                            {{ course.instructor.get_full_name }}
+                            {% else %}
+                            {{ course.instructor.email }}
+                            {% endif %}
+                        </p>
+
+                        <p class="mb-1">
+                            <strong>Category:</strong>
+                            {{ course.category.name }}
+                        </p>
+
+                        <p class="mb-0">
+                            <strong>Price:</strong>
+                            €{{ course.price }}
+                        </p>
+
+                    </div>
+
+                    <div class="alert alert-info">
+                        This project uses a simulated payment.
+                        No real card or banking information is required.
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            Confirm payment — €{{ course.price }}
+                        </button>
+                    </form>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}

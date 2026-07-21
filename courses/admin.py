@@ -6,6 +6,7 @@ from .models import (
     Course,
     CourseSection,
     Enrollment,
+    PaymentTransaction,
     VideoLesson,
 )
 
@@ -208,4 +209,36 @@ class EnrollmentAdmin(admin.ModelAdmin):
 
     readonly_fields = (
         "enrolled_at",
+    )
+
+@admin.register(PaymentTransaction)
+class PaymentTransactionAdmin(admin.ModelAdmin):
+    list_display = (
+        "reference",
+        "learner",
+        "course",
+        "amount",
+        "status",
+        "created_at",
+    )
+
+    list_filter = (
+        "status",
+        "created_at",
+    )
+
+    search_fields = (
+        "reference",
+        "learner__email",
+        "course__title",
+    )
+
+    readonly_fields = (
+        "reference",
+        "learner",
+        "course",
+        "amount",
+        "status",
+        "created_at",
+        "completed_at",
     )
