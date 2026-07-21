@@ -1763,3 +1763,100 @@ class CoursePurchaseTests(TestCase):
         self.assertFalse(
             PaymentTransaction.objects.exists()
         )
+        
+class WatchCourseVideoTests(TestCase):
+    """Tests for watching enrolled course videos."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="watch.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner = User.objects.create_user(
+            email="watch.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.other_learner = User.objects.create_user(
+            email="watch.other@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.category = Category.objects.create(
+            name="Video Watching",
+        )
+
+        self.course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Watch Python Videos",
+            description="A course containing video lessons.",
+            level=Course.Level.BEGINNER,
+            price="20.00",
+            duration_minutes=60,
+            learning_objectives="Watch Python lessons",
+            status=Course.Status.APPROVED,
+        )
+
+        self.section = CourseSection.objects.create(
+            course=self.course,
+            title="Python Basics",
+            order=1,
+        )
+
+        self.lesson = VideoLesson.objects.create(
+            section=self.section,
+            title="Python Introduction",
+            video_file="courses/tests/python-introduction.mp4",
+            order=1,
+            duration_minutes=10,
+        )
+
+        Enrollment.objects.create(
+            learner=self.learner,
+            course=self.course,
+        )
+
+        self.content_url = reverse(
+            "courses:learner_course_content",
+            args=[self.course.pk],
+        )
+
+        self.lesson_url = reverse(
+            "courses:lesson_watch",
+            args=[self.lesson.pk],
+        )
+
+    def test_enrolled_learner_can_view_course_content(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.get(self.content_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Python Basics")
+        self.assertContains(response, "Python Introduction")
+
+    def test_enrolled_learner_can_watch_video(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.get(self.lesson_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Python Introduction")
+        self.assertContains(
+            response,
+            self.lesson.video_file.url,
+        )
+
+    def test_non_enrolled_learner_cannot_watch_video(self):
+        self.client.force_login(self.other_learner)
+
+        response = self.client.get(self.lesson_url)
+
+        self.assertEqual(response.status_code, 404)

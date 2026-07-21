@@ -12,6 +12,16 @@ urlpatterns = [
         name="course_catalog",
     ),
     path(
+        "learning/<int:course_id>/",
+        views.learner_course_content,
+        name="learner_course_content",
+    ),
+    path(
+        "learning/lessons/<int:lesson_id>/",
+        views.lesson_watch,
+        name="lesson_watch",
+    ),
+    path(
         "<int:course_id>/",
         views.course_detail,
         name="course_detail",

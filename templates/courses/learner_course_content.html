@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ course.title }} | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <div class="mb-4">
+        <a href="{% url 'courses:course_detail' course.pk %}" class="text-decoration-none">
+            ← Back to course details
+        </a>
+
+        <h1 class="fw-bold mt-3 mb-1">
+            {{ course.title }}
+        </h1>
+
+        <p class="text-secondary mb-0">
+            Select a lesson to begin learning.
+        </p>
+    </div>
+
+    {% for section in course.sections.all %}
+
+    <div class="card border-0 shadow-sm mb-4">
+
+        <div class="card-header bg-white py-3">
+            <h2 class="h5 fw-bold mb-0">
+                Section {{ section.order }}:
+                {{ section.title }}
+            </h2>
+        </div>
+
+        <div class="list-group list-group-flush">
+
+            {% for lesson in section.lessons.all %}
+
+            <a href="{% url 'courses:lesson_watch' lesson.pk %}" class="list-group-item list-group-item-action
+                               d-flex justify-content-between
+                               align-items-center py-3">
+                <div>
+                    <strong>
+                        {{ lesson.order }}.
+                        {{ lesson.title }}
+                    </strong>
+
+                    <div class="small text-secondary mt-1">
+                        {{ lesson.duration_minutes }}
+                        minute{{ lesson.duration_minutes|pluralize }}
+                    </div>
+                </div>
+
+                <span class="btn btn-sm btn-outline-primary">
+                    Watch
+                </span>
+            </a>
+
+            {% empty %}
+
+            <div class="list-group-item py-4">
+                <p class="text-secondary mb-0">
+                    No lessons are available in this section.
+                </p>
+            </div>
+
+            {% endfor %}
+
+        </div>
+    </div>
+
+    {% empty %}
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+
+            <h2 class="h4">
+                No lessons are available
+            </h2>
+
+            <p class="text-secondary mb-0">
+                The instructor has not uploaded course content yet.
+            </p>
+
+        </div>
+    </div>
+
+    {% endfor %}
+
+</div>
+{% endblock %}

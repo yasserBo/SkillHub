@@ -579,3 +579,92 @@ def course_purchase(request, course_id):
             "course": course,
         },
     )
+
+@login_required
+def learner_course_content(request, course_id):
+    """Display lessons to an enrolled learner."""
+
+    if request.user.role != User.Role.LEARNER:
+        return redirect("accounts:dashboard")
+
+    enrollment = get_object_or_404(
+        Enrollment.objects
+        .select_related("course")
+        .prefetch_related(
+            "course__sections__lessons"
+        ),
+        learner=request.user,
+        course_id=course_id,
+        course__status=Course.Status.APPROVED,
+    )
+
+    return render(
+        request,
+        "courses/learner_course_content.html",
+        {
+            "course": enrollment.course,
+            "enrollment": enrollment,
+        },
+    )
+
+
+@login_required
+def lesson_watch(request, lesson_id):
+    """Allow an enrolled learner to watch a video lesson."""
+
+    if request.user.role != User.Role.LEARNER:
+        return redirect("accounts:dashboard")
+
+    lesson = get_object_or_404(
+        VideoLesson.objects.select_related(
+            "section",
+            "section__course",
+        ),
+        pk=lesson_id,
+        section__course__status=Course.Status.APPROVED,
+        section__course__enrollments__learner=request.user,
+    )
+
+    course = lesson.section.course
+
+    lessons = list(
+        VideoLesson.objects.filter(
+            section__course=course,
+        )
+        .select_related("section")
+        .order_by(
+            "section__order",
+            "order",
+            "pk",
+        )
+    )
+
+    current_index = next(
+        (
+            index
+            for index, current_lesson in enumerate(lessons)
+            if current_lesson.pk == lesson.pk
+        ),
+        None,
+    )
+
+    previous_lesson = None
+    next_lesson = None
+
+    if current_index is not None:
+        if current_index > 0:
+            previous_lesson = lessons[current_index - 1]
+
+        if current_index < len(lessons) - 1:
+            next_lesson = lessons[current_index + 1]
+
+    return render(
+        request,
+        "courses/lesson_watch.html",
+        {
+            "course": course,
+            "lesson": lesson,
+            "previous_lesson": previous_lesson,
+            "next_lesson": next_lesson,
+        },
+    )
