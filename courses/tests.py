@@ -3097,3 +3097,349 @@ class InstructorEarningsDashboardTests(TestCase):
             reverse("accounts:dashboard"),
             fetch_redirect_response=False,
         )
+
+
+class MonitorPaymentTransactionsTests(TestCase):
+    """Tests for administrator payment monitoring."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.admin_user = User.objects.create_user(
+            email="payments.admin@example.com",
+            password=self.password,
+            role=User.Role.ADMIN,
+        )
+
+        self.instructor = User.objects.create_user(
+            email="payments.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner_one = User.objects.create_user(
+            email="payment.alice@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+            first_name="Alice",
+            last_name="Buyer",
+        )
+
+        self.learner_two = User.objects.create_user(
+            email="payment.bob@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+            first_name="Bob",
+            last_name="Buyer",
+        )
+
+        self.category = Category.objects.create(
+            name="Payment Monitoring",
+        )
+
+        self.course_one = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Successful Payment Course",
+            description="Course with a successful payment.",
+            level=Course.Level.BEGINNER,
+            price="29.99",
+            duration_minutes=60,
+            learning_objectives="Monitor successful payments",
+            status=Course.Status.APPROVED,
+        )
+
+        self.course_two = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Pending Payment Course",
+            description="Course with a pending payment.",
+            level=Course.Level.INTERMEDIATE,
+            price="40.00",
+            duration_minutes=90,
+            learning_objectives="Monitor pending payments",
+            status=Course.Status.APPROVED,
+        )
+
+        self.successful_payment = (
+            PaymentTransaction.objects.create(
+                learner=self.learner_one,
+                course=self.course_one,
+                amount=Decimal("29.99"),
+                status=(
+                    PaymentTransaction
+                    .Status
+                    .SUCCESSFUL
+                ),
+            )
+        )
+
+        self.pending_payment = (
+            PaymentTransaction.objects.create(
+                learner=self.learner_two,
+                course=self.course_two,
+                amount=Decimal("40.00"),
+                status=(
+                    PaymentTransaction
+                    .Status
+                    .PENDING
+                ),
+            )
+        )
+
+        self.failed_payment = (
+            PaymentTransaction.objects.create(
+                learner=self.learner_two,
+                course=self.course_one,
+                amount=Decimal("29.99"),
+                status=(
+                    PaymentTransaction
+                    .Status
+                    .FAILED
+                ),
+            )
+        )
+
+        self.monitor_url = reverse(
+            "courses:admin_payment_transactions"
+        )
+
+    def test_administrator_can_open_transaction_page(self):
+        self.client.force_login(
+            self.admin_user
+        )
+
+        response = self.client.get(
+            self.monitor_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Payment Transactions",
+        )
+
+    def test_dashboard_calculates_transaction_summary(self):
+        self.client.force_login(
+            self.admin_user
+        )
+
+        response = self.client.get(
+            self.monitor_url
+        )
+
+        self.assertEqual(
+            response.context[
+                "total_transactions"
+            ],
+            3,
+        )
+
+        self.assertEqual(
+            response.context[
+                "successful_transactions"
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            response.context[
+                "pending_transactions"
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            response.context[
+                "failed_transactions"
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            response.context[
+                "successful_revenue"
+            ],
+            Decimal("29.99"),
+        )
+
+    def test_administrator_can_filter_by_status(self):
+        self.client.force_login(
+            self.admin_user
+        )
+
+        response = self.client.get(
+            self.monitor_url,
+            {
+                "status": (
+                    PaymentTransaction
+                    .Status
+                    .SUCCESSFUL
+                ),
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            response.context[
+                "total_transactions"
+            ],
+            1,
+        )
+
+        rows = response.context[
+            "transaction_rows"
+        ]
+
+        self.assertEqual(
+            len(rows),
+            1,
+        )
+
+        transaction = rows[0][
+            "transaction"
+        ]
+
+        self.assertEqual(
+            transaction,
+            self.successful_payment,
+        )
+
+        self.assertEqual(
+            transaction.status,
+            PaymentTransaction.Status.SUCCESSFUL,
+        )
+
+        self.assertEqual(
+            transaction.course,
+            self.course_one,
+        )
+
+    def test_administrator_can_search_by_learner_email(self):
+        self.client.force_login(
+            self.admin_user
+        )
+
+        response = self.client.get(
+            self.monitor_url,
+            {
+                "q": "payment.alice@example.com",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            response.context[
+                "total_transactions"
+            ],
+            1,
+        )
+
+        rows = response.context[
+            "transaction_rows"
+        ]
+
+        self.assertEqual(
+            len(rows),
+            1,
+        )
+
+        transaction = rows[0][
+            "transaction"
+        ]
+
+        self.assertEqual(
+            transaction,
+            self.successful_payment,
+        )
+
+        self.assertEqual(
+            transaction.learner,
+            self.learner_one,
+        )
+
+        self.assertEqual(
+            transaction.course,
+            self.course_one,
+        )
+
+    def test_administrator_can_filter_by_course(self):
+        self.client.force_login(
+            self.admin_user
+        )
+
+        response = self.client.get(
+            self.monitor_url,
+            {
+                "course": self.course_two.pk,
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            response.context[
+                "total_transactions"
+            ],
+            1,
+        )
+
+        rows = response.context[
+            "transaction_rows"
+        ]
+
+        self.assertEqual(
+            len(rows),
+            1,
+        )
+
+        transaction = rows[0][
+            "transaction"
+        ]
+
+        self.assertEqual(
+            transaction,
+            self.pending_payment,
+        )
+
+        self.assertEqual(
+            transaction.course,
+            self.course_two,
+        )
+
+        self.assertEqual(
+            transaction.status,
+            PaymentTransaction.Status.PENDING,
+        )
+
+    def test_instructor_cannot_monitor_all_transactions(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.monitor_url
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "accounts:dashboard",
+            ),
+            fetch_redirect_response=False,
+        )

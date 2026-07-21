@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+
+{% block title %}
+Payment Transactions | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <!-- Page heading -->
+    <div class="d-flex
+                flex-column
+                flex-lg-row
+                justify-content-between
+                align-items-lg-center
+                gap-3 mb-4">
+
+        <div>
+
+            <a href="{% url 'accounts:dashboard' %}" class="text-decoration-none">
+                ← Back to administrator dashboard
+            </a>
+
+            <h1 class="fw-bold mt-3 mb-1">
+                Payment Transactions
+            </h1>
+
+            <p class="text-secondary mb-0">
+                Monitor successful, pending, and failed
+                course-payment transactions.
+            </p>
+
+        </div>
+
+        <span class="badge text-bg-primary fs-6">
+            {{ total_transactions }}
+            transaction{{ total_transactions|pluralize }}
+        </span>
+
+    </div>
+
+    <!-- Summary cards -->
+    <div class="row g-4 mb-5">
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Successful revenue
+                    </span>
+
+                    <div class="display-6 fw-bold text-success mt-2">
+                        €{{ successful_revenue|floatformat:2 }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        Revenue from displayed transactions
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Successful
+                    </span>
+
+                    <div class="display-6 fw-bold text-success mt-2">
+                        {{ successful_transactions }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        Completed payments
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Pending
+                    </span>
+
+                    <div class="display-6 fw-bold text-warning mt-2">
+                        {{ pending_transactions }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        Payments awaiting completion
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <span class="text-secondary small">
+                        Failed
+                    </span>
+
+                    <div class="display-6 fw-bold text-danger mt-2">
+                        {{ failed_transactions }}
+                    </div>
+
+                    <p class="text-secondary small mb-0">
+                        Unsuccessful payments
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+
+        <div class="card-body p-4">
+
+            <form method="get">
+
+                <div class="row g-3">
+
+                    <div class="col-lg-5">
+
+                        <label for="payment-search" class="form-label fw-semibold">
+                            Search transactions
+                        </label>
+
+                        <input id="payment-search" type="search" name="q" value="{{ search_query }}"
+                            class="form-control" placeholder="Learner, course, instructor, or full reference">
+
+                    </div>
+
+                    <div class="col-md-4 col-lg-3">
+
+                        <label for="status-filter" class="form-label fw-semibold">
+                            Status
+                        </label>
+
+                        <select id="status-filter" name="status" class="form-select">
+
+                            {% for option in status_options %}
+
+                            <option value="{{ option.value }}" {% if option.selected %} selected {% endif %}>
+                                {{ option.label }}
+                            </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                    </div>
+
+                    <div class="col-md-5 col-lg-3">
+
+                        <label for="course-filter" class="form-label fw-semibold">
+                            Course
+                        </label>
+
+                        <select id="course-filter" name="course" class="form-select">
+
+                            <option value="">
+                                All courses
+                            </option>
+
+                            {% for option in course_options %}
+
+                            <option value="{{ option.id }}" {% if option.selected %} selected {% endif %}>
+                                {{ option.title }}
+                            </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                    </div>
+
+                    <div class="col-md-3 col-lg-1 d-flex align-items-end">
+
+                        <button type="submit" class="btn btn-primary w-100">
+                            Apply
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </form>
+
+            {% if filters_are_active %}
+
+            <div class="d-flex
+                            flex-column
+                            flex-sm-row
+                            justify-content-between
+                            align-items-sm-center
+                            gap-2 mt-3">
+
+                <p class="text-secondary mb-0">
+                    Showing
+                    <strong>{{ total_transactions }}</strong>
+                    matching
+                    transaction{{ total_transactions|pluralize }}.
+                </p>
+
+                <a href="{% url 'courses:admin_payment_transactions' %}" class="btn btn-sm btn-outline-secondary">
+                    Clear all filters
+                </a>
+
+            </div>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+    <!-- Transaction table -->
+    {% if transaction_rows %}
+
+    <div class="card border-0 shadow-sm">
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle mb-0">
+
+                <thead class="table-light">
+
+                    <tr>
+
+                        <th scope="col">
+                            Reference
+                        </th>
+
+                        <th scope="col">
+                            Learner
+                        </th>
+
+                        <th scope="col">
+                            Course
+                        </th>
+
+                        <th scope="col">
+                            Instructor
+                        </th>
+
+                        <th scope="col">
+                            Amount
+                        </th>
+
+                        <th scope="col">
+                            Status
+                        </th>
+
+                        <th scope="col">
+                            Created
+                        </th>
+
+                        <th scope="col">
+                            Completed
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for row in transaction_rows %}
+
+                    <tr>
+
+                        <td>
+
+                            <span class="font-monospace small" title="{{ row.transaction.reference }}">
+                                {{ row.transaction.reference|stringformat:"s"|slice:":8" }}…
+                            </span>
+
+                        </td>
+
+                        <td>
+
+                            <div class="fw-semibold">
+
+                                {% if row.transaction.learner.get_full_name %}
+
+                                {{ row.transaction.learner.get_full_name }}
+
+                                {% else %}
+
+                                {{ row.transaction.learner.email }}
+
+                                {% endif %}
+
+                            </div>
+
+                            {% if row.transaction.learner.get_full_name %}
+
+                            <div class="small text-secondary">
+                                {{ row.transaction.learner.email }}
+                            </div>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+                            {{ row.transaction.course.title }}
+                        </td>
+
+                        <td>
+                            {{ row.transaction.course.instructor.email }}
+                        </td>
+
+                        <td class="fw-semibold">
+                            €{{ row.transaction.amount|floatformat:2 }}
+                        </td>
+
+                        <td>
+
+                            <span class="badge {{ row.status_class }}">
+                                {{ row.transaction.get_status_display }}
+                            </span>
+
+                        </td>
+
+                        <td>
+                            {{ row.transaction.created_at|date:"d M Y H:i" }}
+                        </td>
+
+                        <td>
+
+                            {% if row.transaction.completed_at %}
+
+                            {{ row.transaction.completed_at|date:"d M Y H:i" }}
+
+                            {% else %}
+
+                            <span class="text-secondary">
+                                —
+                            </span>
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+
+        <div class="card-footer bg-white">
+
+            <nav aria-label="Payment transaction pages">
+
+                <ul class="pagination justify-content-center mb-0">
+
+                    {% if page_obj.has_previous %}
+
+                    <li class="page-item">
+
+                        <a class="page-link"
+                            href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                            Previous
+                        </a>
+
+                    </li>
+
+                    {% else %}
+
+                    <li class="page-item disabled">
+
+                        <span class="page-link">
+                            Previous
+                        </span>
+
+                    </li>
+
+                    {% endif %}
+
+                    <li class="page-item disabled">
+
+                        <span class="page-link">
+                            Page {{ page_obj.number }}
+                            of {{ page_obj.paginator.num_pages }}
+                        </span>
+
+                    </li>
+
+                    {% if page_obj.has_next %}
+
+                    <li class="page-item">
+
+                        <a class="page-link"
+                            href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ page_obj.next_page_number }}">
+                            Next
+                        </a>
+
+                    </li>
+
+                    {% else %}
+
+                    <li class="page-item disabled">
+
+                        <span class="page-link">
+                            Next
+                        </span>
+
+                    </li>
+
+                    {% endif %}
+
+                </ul>
+
+            </nav>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+    {% else %}
+
+    <div class="card border-0 shadow-sm">
+
+        <div class="card-body text-center py-5">
+
+            <h2 class="h4">
+                No transactions found
+            </h2>
+
+            {% if filters_are_active %}
+
+            <p class="text-secondary">
+                No payment transaction matches the selected
+                search and filters.
+            </p>
+
+            <a href="{% url 'courses:admin_payment_transactions' %}" class="btn btn-outline-primary">
+                Clear all filters
+            </a>
+
+            {% else %}
+
+            <p class="text-secondary mb-0">
+                Payment transactions will appear after learners
+                begin purchasing courses.
+            </p>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+</div>
+{% endblock %}

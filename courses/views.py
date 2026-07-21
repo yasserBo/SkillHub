@@ -6,6 +6,8 @@ from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.contrib.auth.decorators import login_required
+import uuid
+
 
 from .forms import (
     CourseCreationForm,
@@ -1881,5 +1883,293 @@ def instructor_earnings_dashboard(request):
             "average_sale": average_sale,
             "course_rows": course_rows,
             "recent_transactions": recent_transactions,
+        },
+    )
+
+
+@login_required
+def admin_payment_transactions(request):
+    """Allow administrators to monitor platform payments."""
+
+    if (
+        request.user.role != User.Role.ADMIN
+        and not request.user.is_superuser
+    ):
+        return redirect("accounts:dashboard")
+
+    search_query = request.GET.get(
+        "q",
+        "",
+    ).strip()
+
+    selected_status = request.GET.get(
+        "status",
+        "",
+    ).strip()
+
+    selected_course_value = request.GET.get(
+        "course",
+        "",
+    ).strip()
+
+    selected_course_id = None
+
+    transactions = (
+        PaymentTransaction.objects
+        .select_related(
+            "learner",
+            "course",
+            "course__instructor",
+        )
+        .order_by("-created_at")
+    )
+
+    # Search by learner email, course title, instructor email,
+    # or an exact UUID transaction reference.
+    if search_query:
+        search_filter = (
+            Q(
+                learner__email__icontains=search_query
+            )
+            | Q(
+                course__title__icontains=search_query
+            )
+            | Q(
+                course__instructor__email__icontains=search_query
+            )
+        )
+
+        try:
+            reference_uuid = uuid.UUID(
+                search_query
+            )
+        except (ValueError, TypeError, AttributeError):
+            reference_uuid = None
+
+        if reference_uuid is not None:
+            search_filter |= Q(
+                reference=reference_uuid
+            )
+
+        transactions = transactions.filter(
+            search_filter
+        )
+
+    valid_statuses = {
+        value
+        for value, _label
+        in PaymentTransaction.Status.choices
+    }
+
+    if selected_status in valid_statuses:
+        transactions = transactions.filter(
+            status=selected_status
+        )
+    else:
+        selected_status = ""
+
+    if selected_course_value.isdigit():
+        selected_course_id = int(
+            selected_course_value
+        )
+
+        transactions = transactions.filter(
+            course_id=selected_course_id
+        )
+
+    summary = transactions.aggregate(
+        total_transactions=Count("pk"),
+
+        successful_transactions=Count(
+            "pk",
+            filter=Q(
+                status=(
+                    PaymentTransaction
+                    .Status
+                    .SUCCESSFUL
+                )
+            ),
+        ),
+
+        pending_transactions=Count(
+            "pk",
+            filter=Q(
+                status=(
+                    PaymentTransaction
+                    .Status
+                    .PENDING
+                )
+            ),
+        ),
+
+        failed_transactions=Count(
+            "pk",
+            filter=Q(
+                status=(
+                    PaymentTransaction
+                    .Status
+                    .FAILED
+                )
+            ),
+        ),
+
+        successful_revenue=Coalesce(
+            Sum(
+                "amount",
+                filter=Q(
+                    status=(
+                        PaymentTransaction
+                        .Status
+                        .SUCCESSFUL
+                    )
+                ),
+            ),
+            Value(
+                Decimal("0.00")
+            ),
+            output_field=DecimalField(
+                max_digits=14,
+                decimal_places=2,
+            ),
+        ),
+    )
+
+    status_options = [
+        {
+            "value": "",
+            "label": "All statuses",
+            "selected": selected_status == "",
+        }
+    ]
+
+    status_options.extend(
+        {
+            "value": value,
+            "label": label,
+            "selected": value == selected_status,
+        }
+        for value, label
+        in PaymentTransaction.Status.choices
+    )
+
+    course_queryset = (
+        Course.objects
+        .filter(
+            payment_transactions__isnull=False
+        )
+        .select_related("instructor")
+        .distinct()
+        .order_by("title")
+    )
+
+    course_options = [
+        {
+            "id": course.pk,
+            "title": course.title,
+            "instructor_email": (
+                course.instructor.email
+            ),
+            "selected": (
+                course.pk == selected_course_id
+            ),
+        }
+        for course in course_queryset
+    ]
+
+    paginator = Paginator(
+        transactions,
+        20,
+    )
+
+    page_obj = paginator.get_page(
+        request.GET.get("page")
+    )
+
+    status_css_classes = {
+        PaymentTransaction.Status.SUCCESSFUL: (
+            "text-bg-success"
+        ),
+        PaymentTransaction.Status.PENDING: (
+            "text-bg-warning"
+        ),
+        PaymentTransaction.Status.FAILED: (
+            "text-bg-danger"
+        ),
+    }
+
+    transaction_rows = [
+        {
+            "transaction": transaction,
+            "status_class": (
+                status_css_classes.get(
+                    transaction.status,
+                    "text-bg-secondary",
+                )
+            ),
+        }
+        for transaction in page_obj.object_list
+    ]
+
+    pagination_parameters = (
+        request.GET.copy()
+    )
+
+    pagination_parameters.pop(
+        "page",
+        None,
+    )
+
+    pagination_query = (
+        pagination_parameters.urlencode()
+    )
+
+    filters_are_active = bool(
+        search_query
+        or selected_status
+        or selected_course_id
+    )
+
+    return render(
+        request,
+        "courses/admin_payment_transactions.html",
+        {
+            "transaction_rows": transaction_rows,
+            "page_obj": page_obj,
+            "search_query": search_query,
+            "status_options": status_options,
+            "course_options": course_options,
+            "selected_status": selected_status,
+            "selected_course_id": (
+                selected_course_id
+            ),
+            "filters_are_active": (
+                filters_are_active
+            ),
+            "pagination_query": (
+                pagination_query
+            ),
+            "total_transactions": (
+                summary["total_transactions"]
+            ),
+            "successful_transactions": (
+                summary[
+                    "successful_transactions"
+                ]
+            ),
+            "pending_transactions": (
+                summary[
+                    "pending_transactions"
+                ]
+            ),
+            "failed_transactions": (
+                summary[
+                    "failed_transactions"
+                ]
+            ),
+            "successful_revenue": (
+                summary[
+                    "successful_revenue"
+                ]
+            ),
         },
     )

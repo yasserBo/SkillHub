@@ -37,6 +37,11 @@ urlpatterns = [
         name="quiz_result",
     ),
     path(
+        "administration/payments/",
+        views.admin_payment_transactions,
+        name="admin_payment_transactions",
+    ),
+    path(
         "<int:course_id>/",
         views.course_detail,
         name="course_detail",
