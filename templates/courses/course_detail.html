@@ -139,9 +139,37 @@
 
                     <hr>
 
-                    <p class="small text-secondary mb-0">
-                        Enrollment will be added in a later user story.
-                    </p>
+                    {% if user.is_authenticated %}
+
+                    {% if user.role == "LEARNER" %}
+
+                    {% if is_enrolled %}
+                    <div class="alert alert-success mb-0">
+                        You are enrolled in this course.
+                    </div>
+                    {% else %}
+                    <form method="post" action="{% url 'courses:course_enroll' course.pk %}">
+                        {% csrf_token %}
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            Enroll now
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    {% else %}
+                    <div class="alert alert-secondary mb-0">
+                        Only learner accounts can enroll in courses.
+                    </div>
+                    {% endif %}
+
+                    {% else %}
+
+                    <a href="{% url 'accounts:login' %}?next={{ request.path }}" class="btn btn-primary btn-lg w-100">
+                        Log in to enroll
+                    </a>
+
+                    {% endif %}
 
                 </div>
             </div>

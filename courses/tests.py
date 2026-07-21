@@ -12,6 +12,7 @@ from .models import (
     Category,
     Course,
     CourseSection,
+    Enrollment,
     VideoLesson,
 )
 
@@ -1220,4 +1221,204 @@ class CourseSearchTests(TestCase):
         self.assertEqual(
             response.context["result_count"],
             1,
+        )
+
+class CourseEnrollmentTests(TestCase):
+    """Tests for US-06 learner course enrollment."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="enrollment.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner = User.objects.create_user(
+            email="enrollment.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.category = Category.objects.create(
+            name="Enrollment Programming",
+        )
+
+        self.approved_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Approved Enrollment Course",
+            description="An approved course open for enrollment.",
+            level=Course.Level.BEGINNER,
+            price="10.00",
+            duration_minutes=120,
+            learning_objectives="Learn enrollment testing",
+            status=Course.Status.APPROVED,
+        )
+
+        self.draft_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Draft Enrollment Course",
+            description="A draft course that cannot accept learners.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            duration_minutes=60,
+            learning_objectives="Hidden enrollment objective",
+            status=Course.Status.DRAFT,
+        )
+
+        self.detail_url = reverse(
+            "courses:course_detail",
+            args=[self.approved_course.pk],
+        )
+
+        self.enroll_url = reverse(
+            "courses:course_enroll",
+            args=[self.approved_course.pk],
+        )
+
+    def test_enrollment_requires_login(self):
+        response = self.client.post(
+            self.enroll_url
+        )
+
+        expected_url = (
+            reverse("accounts:login")
+            + "?next="
+            + self.enroll_url
+        )
+
+        self.assertRedirects(
+            response,
+            expected_url,
+        )
+
+    def test_learner_can_enroll_in_approved_course(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.post(
+            self.enroll_url
+        )
+
+        self.assertRedirects(
+            response,
+            self.detail_url,
+        )
+
+        self.assertTrue(
+            Enrollment.objects.filter(
+                learner=self.learner,
+                course=self.approved_course,
+            ).exists()
+        )
+
+    def test_duplicate_enrollment_is_not_created(self):
+        Enrollment.objects.create(
+            learner=self.learner,
+            course=self.approved_course,
+        )
+
+        self.client.force_login(self.learner)
+
+        response = self.client.post(
+            self.enroll_url
+        )
+
+        self.assertRedirects(
+            response,
+            self.detail_url,
+        )
+
+        self.assertEqual(
+            Enrollment.objects.filter(
+                learner=self.learner,
+                course=self.approved_course,
+            ).count(),
+            1,
+        )
+
+    def test_instructor_cannot_enroll(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.post(
+            self.enroll_url
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:dashboard"),
+            fetch_redirect_response=False,
+        )
+
+        self.assertFalse(
+            Enrollment.objects.exists()
+        )
+
+    def test_learner_cannot_enroll_in_draft_course(self):
+        hidden_enroll_url = reverse(
+            "courses:course_enroll",
+            args=[self.draft_course.pk],
+        )
+
+        self.client.force_login(self.learner)
+
+        response = self.client.post(
+            hidden_enroll_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+        self.assertFalse(
+            Enrollment.objects.exists()
+        )
+
+    def test_enrollment_requires_post(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.get(
+            self.enroll_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            405,
+        )
+
+    def test_detail_page_shows_enroll_button(self):
+        self.client.force_login(self.learner)
+
+        response = self.client.get(
+            self.detail_url
+        )
+
+        self.assertContains(
+            response,
+            "Enroll now",
+        )
+
+    def test_detail_page_shows_enrolled_status(self):
+        Enrollment.objects.create(
+            learner=self.learner,
+            course=self.approved_course,
+        )
+
+        self.client.force_login(self.learner)
+
+        response = self.client.get(
+            self.detail_url
+        )
+
+        self.assertContains(
+            response,
+            "You are enrolled in this course.",
+        )
+
+        self.assertNotContains(
+            response,
+            "Enroll now",
         )

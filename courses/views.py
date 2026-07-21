@@ -5,14 +5,18 @@ from accounts.models import User
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.contrib.auth.decorators import login_required
 
 from .forms import (
     CourseCreationForm,
     CourseSectionForm,
     VideoLessonUploadForm,
 )
-from .models import Course, CourseSection
-
+from .models import (
+    Course,
+    CourseSection,
+    Enrollment,
+)
 @login_required
 def instructor_course_list(request):
     """Display courses belonging to the logged-in instructor."""
@@ -185,14 +189,67 @@ def course_detail(request, course_id):
         if objective.strip()
     ]
 
+    is_enrolled = False
+
+    if (
+        request.user.is_authenticated
+        and request.user.role == User.Role.LEARNER
+    ):
+        is_enrolled = Enrollment.objects.filter(
+            learner=request.user,
+            course=course,
+        ).exists()
+
     return render(
         request,
         "courses/course_detail.html",
         {
             "course": course,
             "learning_objectives": learning_objectives,
+            "is_enrolled": is_enrolled,
         },
     )
+
+@login_required
+@require_POST
+def course_enroll(request, course_id):
+    """Allow a learner to enroll in an approved course."""
+
+    if request.user.role != User.Role.LEARNER:
+        messages.warning(
+            request,
+            "Only learner accounts can enroll in courses.",
+        )
+
+        return redirect("accounts:dashboard")
+
+    course = get_object_or_404(
+        Course,
+        pk=course_id,
+        status=Course.Status.APPROVED,
+    )
+
+    enrollment, created = Enrollment.objects.get_or_create(
+        learner=request.user,
+        course=course,
+    )
+
+    if created:
+        messages.success(
+            request,
+            f"You successfully enrolled in {course.title}.",
+        )
+    else:
+        messages.info(
+            request,
+            "You are already enrolled in this course.",
+        )
+
+    return redirect(
+        "courses:course_detail",
+        course_id=course.pk,
+    )
+
 
 @login_required
 def course_content_manage(request, course_id):

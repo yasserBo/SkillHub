@@ -5,6 +5,7 @@ from .models import (
     Category,
     Course,
     CourseSection,
+    Enrollment,
     VideoLesson,
 )
 
@@ -183,4 +184,28 @@ class VideoLessonAdmin(admin.ModelAdmin):
         "title",
         "section__title",
         "section__course__title",
+    )
+
+@admin.register(Enrollment)
+class EnrollmentAdmin(admin.ModelAdmin):
+    list_display = (
+        "learner",
+        "course",
+        "status",
+        "enrolled_at",
+    )
+
+    list_filter = (
+        "status",
+        "course",
+        "enrolled_at",
+    )
+
+    search_fields = (
+        "learner__email",
+        "course__title",
+    )
+
+    readonly_fields = (
+        "enrolled_at",
     )

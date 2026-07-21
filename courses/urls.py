@@ -17,6 +17,11 @@ urlpatterns = [
         name="course_detail",
     ),
     path(
+        "<int:course_id>/enroll/",
+        views.course_enroll,
+        name="course_enroll",
+    ),
+    path(
         "instructor/",
         views.instructor_course_list,
         name="instructor_course_list",
