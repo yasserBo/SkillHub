@@ -1005,3 +1005,219 @@ class CourseVideoUploadTests(TestCase):
             VideoLesson.objects.count(),
             1,
         )
+
+class CourseSearchTests(TestCase):
+    """Tests for US-05 course keyword search."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="john.teacher@example.com",
+            password=self.password,
+            first_name="John",
+            last_name="Teacher",
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.programming_category = Category.objects.create(
+            name="Programming Search",
+        )
+
+        self.business_category = Category.objects.create(
+            name="Business Search",
+        )
+
+        self.python_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.programming_category,
+            title="Python Programming Fundamentals",
+            description=(
+                "Learn variables, functions and object-oriented "
+                "programming."
+            ),
+            level=Course.Level.BEGINNER,
+            price="19.99",
+            duration_minutes=120,
+            learning_objectives="Learn Python fundamentals",
+            status=Course.Status.APPROVED,
+        )
+
+        self.marketing_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.business_category,
+            title="Digital Marketing Strategy",
+            description=(
+                "Learn online campaigns and customer engagement."
+            ),
+            level=Course.Level.INTERMEDIATE,
+            price="29.99",
+            duration_minutes=90,
+            learning_objectives="Create marketing campaigns",
+            status=Course.Status.APPROVED,
+        )
+
+        self.hidden_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.programming_category,
+            title="Hidden Python Advanced Course",
+            description="This draft course must remain hidden.",
+            level=Course.Level.ADVANCED,
+            price="49.99",
+            duration_minutes=180,
+            learning_objectives="Learn advanced Python",
+            status=Course.Status.DRAFT,
+        )
+
+        self.catalog_url = reverse(
+            "courses:course_catalog"
+        )
+
+    def test_search_by_course_title(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "q": "Python",
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Python Programming Fundamentals",
+        )
+
+        self.assertNotContains(
+            response,
+            "Digital Marketing Strategy",
+        )
+
+    def test_search_is_case_insensitive(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "q": "python",
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Python Programming Fundamentals",
+        )
+
+    def test_search_by_description(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "q": "customer engagement",
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Digital Marketing Strategy",
+        )
+
+    def test_search_by_category(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "q": "Business Search",
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Digital Marketing Strategy",
+        )
+
+        self.assertNotContains(
+            response,
+            "Python Programming Fundamentals",
+        )
+
+    def test_search_by_instructor_name(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "q": "John",
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Python Programming Fundamentals",
+        )
+
+        self.assertContains(
+            response,
+            "Digital Marketing Strategy",
+        )
+
+        self.assertContains(
+            response,
+            "Python Programming Fundamentals",
+        )
+
+        self.assertContains(
+            response,
+            "Digital Marketing Strategy",
+        )
+
+    def test_search_hides_non_approved_courses(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "q": "Hidden Python",
+            },
+        )
+
+        self.assertNotContains(
+            response,
+            "Hidden Python Advanced Course",
+        )
+
+        self.assertContains(
+            response,
+            "No matching courses found",
+        )
+
+    def test_no_results_message_is_displayed(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "q": "Cybersecurity",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "No matching courses found",
+        )
+
+        self.assertContains(
+            response,
+            "Cybersecurity",
+        )
+
+    def test_search_query_is_kept_in_context(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "q": "Python",
+            },
+        )
+
+        self.assertEqual(
+            response.context["query"],
+            "Python",
+        )
+
+        self.assertEqual(
+            response.context["result_count"],
+            1,
+        )

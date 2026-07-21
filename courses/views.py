@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from accounts.models import User
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
+from django.db.models import Q
 
 from .forms import (
     CourseCreationForm,
@@ -120,13 +121,28 @@ def course_submit(request, course_id):
     )
 
 def course_catalog(request):
-    """Display approved SkillHub courses."""
+    """Display and search approved SkillHub courses."""
+
+    query = request.GET.get("q", "").strip()
 
     approved_courses = (
         Course.objects
         .filter(status=Course.Status.APPROVED)
         .select_related("category", "instructor")
-        .order_by("-created_at")
+    )
+
+    if query:
+        approved_courses = approved_courses.filter(
+            Q(title__icontains=query)
+            | Q(description__icontains=query)
+            | Q(category__name__icontains=query)
+            | Q(instructor__first_name__icontains=query)
+            | Q(instructor__last_name__icontains=query)
+            | Q(instructor__email__icontains=query)
+        )
+
+    approved_courses = approved_courses.order_by(
+        "-created_at"
     )
 
     paginator = Paginator(
@@ -142,8 +158,14 @@ def course_catalog(request):
         "courses/course_catalog.html",
         {
             "page_obj": page_obj,
+            "query": query,
+            "result_count": paginator.count,
         },
     )
+
+
+
+
 
 def course_detail(request, course_id):
     """Display the full details of an approved course."""

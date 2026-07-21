@@ -7,7 +7,7 @@ Browse Courses | SkillHub
 {% block content %}
 <div class="container py-5">
 
-    <div class="text-center mb-5">
+    <div class="text-center mb-4">
         <h1 class="fw-bold">
             Explore SkillHub Courses
         </h1>
@@ -15,6 +15,40 @@ Browse Courses | SkillHub
         <p class="text-secondary">
             Discover approved courses and start developing new skills.
         </p>
+    </div>
+
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-8">
+
+            <form method="get" action="{% url 'courses:course_catalog' %}">
+                <div class="input-group input-group-lg">
+
+                    <input type="search" name="q" value="{{ query }}" class="form-control"
+                        placeholder="Search by title, category or instructor" aria-label="Search courses">
+
+                    <button type="submit" class="btn btn-primary">
+                        Search
+                    </button>
+
+                    {% if query %}
+                    <a href="{% url 'courses:course_catalog' %}" class="btn btn-outline-secondary">
+                        Clear
+                    </a>
+                    {% endif %}
+
+                </div>
+            </form>
+
+            {% if query %}
+            <p class="text-secondary mt-3 mb-0">
+                {{ result_count }}
+                result{{ result_count|pluralize }}
+                found for
+                <strong>“{{ query }}”</strong>
+            </p>
+            {% endif %}
+
+        </div>
     </div>
 
     {% if page_obj %}
@@ -95,7 +129,8 @@ Browse Courses | SkillHub
 
             {% if page_obj.has_previous %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                <a class="page-link"
+                    href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query|urlencode }}{% endif %}">
                     Previous
                 </a>
             </li>
@@ -116,7 +151,7 @@ Browse Courses | SkillHub
             </li>
             {% else %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_number }}">
+                <a class="page-link" href="?page={{ page_number }}{% if query %}&q={{ query|urlencode }}{% endif %}">
                     {{ page_number }}
                 </a>
             </li>
@@ -125,7 +160,8 @@ Browse Courses | SkillHub
 
             {% if page_obj.has_next %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                <a class="page-link"
+                    href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query|urlencode }}{% endif %}">
                     Next
                 </a>
             </li>
@@ -145,6 +181,20 @@ Browse Courses | SkillHub
     <div class="card border-0 shadow-sm">
         <div class="card-body text-center py-5">
 
+            {% if query %}
+            <h2 class="h4">
+                No matching courses found
+            </h2>
+
+            <p class="text-secondary">
+                No approved courses match
+                <strong>“{{ query }}”</strong>.
+            </p>
+
+            <a href="{% url 'courses:course_catalog' %}" class="btn btn-outline-primary">
+                View all courses
+            </a>
+            {% else %}
             <h2 class="h4">
                 No courses are available yet
             </h2>
@@ -152,6 +202,7 @@ Browse Courses | SkillHub
             <p class="text-secondary mb-0">
                 Approved courses will appear here.
             </p>
+            {% endif %}
 
         </div>
     </div>
