@@ -3749,3 +3749,235 @@ class GeneratePlatformReportsTests(TestCase):
             ),
             fetch_redirect_response=False,
         )
+
+
+class PersonalizedCourseRecommendationTests(TestCase):
+    """Tests for personalized learner course recommendations."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="recommend.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner = User.objects.create_user(
+            email="recommend.learner@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.new_learner = User.objects.create_user(
+            email="recommend.new@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+        )
+
+        self.python_category = Category.objects.create(
+            name="Python",
+        )
+
+        self.design_category = Category.objects.create(
+            name="Design",
+        )
+
+        self.enrolled_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.python_category,
+            title="Python Foundations",
+            description="An enrolled Python course.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            duration_minutes=60,
+            learning_objectives="Learn Python foundations",
+            status=Course.Status.APPROVED,
+        )
+
+        self.python_recommendation = Course.objects.create(
+            instructor=self.instructor,
+            category=self.python_category,
+            title="Advanced Python Development",
+            description="A recommended Python course.",
+            level=Course.Level.BEGINNER,
+            price="20.00",
+            duration_minutes=120,
+            learning_objectives="Continue learning Python",
+            status=Course.Status.APPROVED,
+        )
+
+        self.design_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.design_category,
+            title="Introduction to Design",
+            description="A design course.",
+            level=Course.Level.INTERMEDIATE,
+            price="15.00",
+            duration_minutes=90,
+            learning_objectives="Learn design",
+            status=Course.Status.APPROVED,
+        )
+
+        self.draft_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.python_category,
+            title="Unpublished Python Course",
+            description="This must never be recommended.",
+            level=Course.Level.BEGINNER,
+            price="0.00",
+            duration_minutes=60,
+            learning_objectives="Remain unpublished",
+            status=Course.Status.DRAFT,
+        )
+
+        Enrollment.objects.create(
+            learner=self.learner,
+            course=self.enrolled_course,
+        )
+
+        CourseReview.objects.create(
+            learner=self.learner,
+            course=self.enrolled_course,
+            rating=5,
+            comment="I enjoyed this Python course.",
+        )
+
+        self.recommendations_url = reverse(
+            "courses:personalized_course_recommendations"
+        )
+
+    def test_learner_can_open_recommendations_page(self):
+        self.client.force_login(
+            self.learner
+        )
+
+        response = self.client.get(
+            self.recommendations_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Recommended for You",
+        )
+
+    def test_enrolled_course_is_not_recommended(self):
+        self.client.force_login(
+            self.learner
+        )
+
+        response = self.client.get(
+            self.recommendations_url
+        )
+
+        recommended_courses = [
+            row["course"]
+            for row in response.context[
+                "recommendations"
+            ]
+        ]
+
+        self.assertNotIn(
+            self.enrolled_course,
+            recommended_courses,
+        )
+
+    def test_draft_course_is_not_recommended(self):
+        self.client.force_login(
+            self.learner
+        )
+
+        response = self.client.get(
+            self.recommendations_url
+        )
+
+        recommended_courses = [
+            row["course"]
+            for row in response.context[
+                "recommendations"
+            ]
+        ]
+
+        self.assertNotIn(
+            self.draft_course,
+            recommended_courses,
+        )
+
+    def test_matching_category_course_is_ranked_first(self):
+        self.client.force_login(
+            self.learner
+        )
+
+        response = self.client.get(
+            self.recommendations_url
+        )
+
+        recommendations = response.context[
+            "recommendations"
+        ]
+
+        self.assertGreater(
+            len(recommendations),
+            0,
+        )
+
+        self.assertEqual(
+            recommendations[0]["course"],
+            self.python_recommendation,
+        )
+
+    def test_new_learner_receives_available_courses(self):
+        self.client.force_login(
+            self.new_learner
+        )
+
+        response = self.client.get(
+            self.recommendations_url
+        )
+
+        recommendations = response.context[
+            "recommendations"
+        ]
+
+        recommended_courses = [
+            row["course"]
+            for row in recommendations
+        ]
+
+        self.assertIn(
+            self.python_recommendation,
+            recommended_courses,
+        )
+
+        self.assertIn(
+            self.design_course,
+            recommended_courses,
+        )
+
+        self.assertFalse(
+            response.context[
+                "has_learning_history"
+            ]
+        )
+
+    def test_instructor_cannot_view_learner_recommendations(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.recommendations_url
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "accounts:dashboard",
+            ),
+            fetch_redirect_response=False,
+        )

@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}
+Recommended Courses | SkillHub
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <!-- Page heading -->
+    <div class="d-flex
+                flex-column
+                flex-lg-row
+                justify-content-between
+                align-items-lg-center
+                gap-3 mb-5">
+
+        <div>
+
+            <a href="{% url 'accounts:dashboard' %}" class="text-decoration-none">
+                ← Back to learner dashboard
+            </a>
+
+            <h1 class="fw-bold mt-3 mb-1">
+                Recommended for You
+            </h1>
+
+            <p class="text-secondary mb-0">
+                Discover approved courses selected according to your
+                interests and learning activity.
+            </p>
+
+        </div>
+
+        <a href="{% url 'courses:course_catalog' %}" class="btn btn-outline-primary">
+            Browse all courses
+        </a>
+
+    </div>
+
+    <!-- Recommendation explanation -->
+    <div class="card border-0 shadow-sm mb-5">
+
+        <div class="card-body p-4">
+
+            <div class="row g-4 align-items-center">
+
+                <div class="col-md-8">
+
+                    {% if has_learning_history %}
+
+                    <span class="badge text-bg-success mb-2">
+                        Personalized recommendations
+                    </span>
+
+                    <h2 class="h4 fw-bold">
+                        Based on your learning history
+                    </h2>
+
+                    <p class="text-secondary mb-0">
+                        These courses were selected using your
+                        enrolled-course categories, preferred levels,
+                        ratings, and overall course popularity.
+                    </p>
+
+                    {% else %}
+
+                    <span class="badge text-bg-primary mb-2">
+                        Popular recommendations
+                    </span>
+
+                    <h2 class="h4 fw-bold">
+                        Start building your learning profile
+                    </h2>
+
+                    <p class="text-secondary mb-0">
+                        Since you have not enrolled in a course yet,
+                        SkillHub is showing available approved courses,
+                        including highly rated and popular options.
+                    </p>
+
+                    {% endif %}
+
+                </div>
+
+                <div class="col-md-4 text-md-end">
+
+                    <div class="display-6 fw-bold text-primary">
+                        {{ enrolled_course_count }}
+                    </div>
+
+                    <div class="text-secondary">
+
+                        enrolled
+                        course{{ enrolled_course_count|pluralize }}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Recommendation cards -->
+    {% if recommendations %}
+
+    <div class="row g-4">
+
+        {% for recommendation in recommendations %}
+
+        <div class="col-md-6 col-xl-4">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body d-flex flex-column p-4">
+
+                    <div class="d-flex
+                                        justify-content-between
+                                        align-items-start
+                                        gap-2 mb-3">
+
+                        <span class="badge text-bg-primary">
+                            {{ recommendation.course.category.name }}
+                        </span>
+
+                        <span class="badge text-bg-light">
+                            {{ recommendation.course.get_level_display }}
+                        </span>
+
+                    </div>
+
+                    <h2 class="h5 fw-bold">
+                        {{ recommendation.course.title }}
+                    </h2>
+
+                    <p class="text-secondary">
+                        {{ recommendation.course.description|truncatewords:24 }}
+                    </p>
+
+                    <div class="alert alert-info small">
+
+                        <strong>
+                            Why this course?
+                        </strong>
+
+                        <br>
+
+                        {{ recommendation.reason }}
+
+                    </div>
+
+                    <div class="row g-3 small mb-4">
+
+                        <div class="col-6">
+
+                            <span class="text-secondary">
+                                Rating
+                            </span>
+
+                            <div class="fw-semibold">
+
+                                {% if recommendation.average_rating %}
+
+                                {{ recommendation.average_rating|floatformat:1 }}/5
+
+                                {% else %}
+
+                                Not rated
+
+                                {% endif %}
+
+                            </div>
+
+                        </div>
+
+                        <div class="col-6">
+
+                            <span class="text-secondary">
+                                Learners
+                            </span>
+
+                            <div class="fw-semibold">
+                                {{ recommendation.enrollment_count }}
+                            </div>
+
+                        </div>
+
+                        <div class="col-6">
+
+                            <span class="text-secondary">
+                                Instructor
+                            </span>
+
+                            <div class="fw-semibold">
+
+                                {% if recommendation.course.instructor.get_full_name %}
+
+                                {{ recommendation.course.instructor.get_full_name }}
+
+                                {% else %}
+
+                                {{ recommendation.course.instructor.email }}
+
+                                {% endif %}
+
+                            </div>
+
+                        </div>
+
+                        <div class="col-6">
+
+                            <span class="text-secondary">
+                                Price
+                            </span>
+
+                            <div class="fw-semibold">
+
+                                {% if recommendation.course.is_free %}
+
+                                Free
+
+                                {% else %}
+
+                                €{{ recommendation.course.price|floatformat:2 }}
+
+                                {% endif %}
+
+                            </div>
+
+                        </div>
+
+                        <div class="col-6">
+
+                            <span class="text-secondary">
+                                Reviews
+                            </span>
+
+                            <div class="fw-semibold">
+                                {{ recommendation.review_count }}
+                            </div>
+
+                        </div>
+
+                        <div class="col-6">
+
+                            <span class="text-secondary">
+                                Duration
+                            </span>
+
+                            <div class="fw-semibold">
+                                {{ recommendation.course.duration_display }}
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="mt-auto">
+
+                        <a href="{% url 'courses:course_detail' recommendation.course.pk %}"
+                            class="btn btn-primary w-100">
+                            View recommended course
+                        </a>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+    {% else %}
+
+    <div class="card border-0 shadow-sm">
+
+        <div class="card-body text-center py-5">
+
+            <h2 class="h4">
+                No new recommendations
+            </h2>
+
+            <p class="text-secondary">
+                You are already enrolled in all currently available
+                approved courses.
+            </p>
+
+            <a href="{% url 'courses:course_catalog' %}" class="btn btn-outline-primary">
+                Browse course catalog
+            </a>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+</div>
+{% endblock %}

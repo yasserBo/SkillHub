@@ -59,6 +59,9 @@ from django.db.models import (
     Value,
 )
 from django.db.models.functions import Coalesce
+from collections import Counter
+
+from django.db.models import Avg, Count
 
 
 @login_required
@@ -2802,5 +2805,266 @@ def admin_platform_reports(request):
                 filters_are_active
             ),
             "report_query": report_query,
+        },
+    )
+
+def _build_personalized_recommendations(
+    learner,
+    limit=6,
+):
+    """Return personalized approved-course recommendations."""
+
+    enrolled_courses = list(
+        Course.objects.filter(
+            enrollments__learner=learner,
+        )
+        .select_related("category")
+        .distinct()
+    )
+
+    enrolled_course_ids = {
+        course.pk
+        for course in enrolled_courses
+    }
+
+    category_preferences = Counter()
+    level_preferences = Counter()
+
+    # Enrollment history gives information about learner interests.
+    for course in enrolled_courses:
+        category_preferences[
+            course.category_id
+        ] += 2
+
+        level_preferences[
+            course.level
+        ] += 1
+
+    # Positive reviews provide a stronger preference signal.
+    positive_reviews = (
+        CourseReview.objects.filter(
+            learner=learner,
+            rating__gte=4,
+        )
+        .select_related(
+            "course",
+            "course__category",
+        )
+    )
+
+    for review in positive_reviews:
+        category_preferences[
+            review.course.category_id
+        ] += 3
+
+        level_preferences[
+            review.course.level
+        ] += 2
+
+    has_learning_history = bool(
+        enrolled_courses
+        or category_preferences
+        or level_preferences
+    )
+
+    candidate_courses = list(
+        Course.objects.filter(
+            status=Course.Status.APPROVED,
+        )
+        .exclude(
+            pk__in=enrolled_course_ids,
+        )
+        .select_related(
+            "category",
+            "instructor",
+        )
+        .order_by("title")
+    )
+
+    candidate_ids = [
+        course.pk
+        for course in candidate_courses
+    ]
+
+    enrollment_statistics = {
+        row["course_id"]: row["total"]
+        for row in (
+            Enrollment.objects.filter(
+                course_id__in=candidate_ids,
+            )
+            .values("course_id")
+            .annotate(
+                total=Count("pk"),
+            )
+        )
+    }
+
+    review_statistics = {
+        row["course_id"]: {
+            "average_rating": (
+                row["average_rating"]
+            ),
+            "review_count": (
+                row["review_count"]
+            ),
+        }
+        for row in (
+            CourseReview.objects.filter(
+                course_id__in=candidate_ids,
+            )
+            .values("course_id")
+            .annotate(
+                average_rating=Avg("rating"),
+                review_count=Count("pk"),
+            )
+        )
+    }
+
+    recommendations = []
+
+    for course in candidate_courses:
+        category_strength = (
+            category_preferences.get(
+                course.category_id,
+                0,
+            )
+        )
+
+        level_strength = (
+            level_preferences.get(
+                course.level,
+                0,
+            )
+        )
+
+        review_data = review_statistics.get(
+            course.pk,
+            {},
+        )
+
+        average_rating = (
+            review_data.get(
+                "average_rating"
+            )
+            or 0
+        )
+
+        review_count = review_data.get(
+            "review_count",
+            0,
+        )
+
+        enrollment_count = (
+            enrollment_statistics.get(
+                course.pk,
+                0,
+            )
+        )
+
+        recommendation_score = (
+            category_strength * 4
+            + level_strength * 2
+            + float(average_rating) * 1.5
+            + min(enrollment_count, 20) * 0.2
+            + min(review_count, 10) * 0.1
+        )
+
+        if category_strength and level_strength:
+            reason = (
+                f"Matches your interest in "
+                f"{course.category.name} and your "
+                f"preferred course level."
+            )
+
+        elif category_strength:
+            reason = (
+                f"Recommended because you have shown "
+                f"interest in {course.category.name}."
+            )
+
+        elif level_strength:
+            reason = (
+                f"Matches the difficulty level of "
+                f"courses you previously selected."
+            )
+
+        elif average_rating:
+            reason = (
+                f"Popular with learners and rated "
+                f"{float(average_rating):.1f} out of 5."
+            )
+
+        elif enrollment_count:
+            reason = (
+                "Recommended because it is popular "
+                "among SkillHub learners."
+            )
+
+        else:
+            reason = (
+                "A recently available approved course "
+                "you have not joined yet."
+            )
+
+        recommendations.append(
+            {
+                "course": course,
+                "score": recommendation_score,
+                "reason": reason,
+                "average_rating": average_rating,
+                "review_count": review_count,
+                "enrollment_count": enrollment_count,
+            }
+        )
+
+    recommendations.sort(
+        key=lambda recommendation: (
+            recommendation["score"],
+            recommendation["average_rating"],
+            recommendation["enrollment_count"],
+            recommendation["course"].created_at,
+        ),
+        reverse=True,
+    )
+
+    return (
+        recommendations[:limit],
+        has_learning_history,
+    )
+
+@login_required
+def personalized_course_recommendations(request):
+    """Display personalized course recommendations for a learner."""
+
+    if request.user.role != User.Role.LEARNER:
+        return redirect("accounts:dashboard")
+
+    recommendations, has_learning_history = (
+        _build_personalized_recommendations(
+            request.user,
+            limit=6,
+        )
+    )
+
+    enrolled_course_count = (
+        Enrollment.objects.filter(
+            learner=request.user,
+        )
+        .values("course_id")
+        .distinct()
+        .count()
+    )
+
+    return render(
+        request,
+        "courses/personalized_course_recommendations.html",
+        {
+            "recommendations": recommendations,
+            "has_learning_history": (
+                has_learning_history
+            ),
+            "enrolled_course_count": (
+                enrolled_course_count
+            ),
         },
     )
