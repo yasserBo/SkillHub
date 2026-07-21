@@ -26,9 +26,17 @@ My Courses | SkillHub
 
         </div>
 
-        <a href="{% url 'courses:course_create' %}" class="btn btn-primary">
-            Add new course
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+
+            <a href="{% url 'courses:instructor_earnings_dashboard' %}" class="btn btn-outline-success">
+                View earnings
+            </a>
+
+            <a href="{% url 'courses:course_create' %}" class="btn btn-primary">
+                Add new course
+            </a>
+
+        </div>
 
     </div>
 

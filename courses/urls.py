@@ -72,6 +72,11 @@ urlpatterns = [
         name="course_edit",
     ),
     path(
+        "instructor/earnings/",
+        views.instructor_earnings_dashboard,
+        name="instructor_earnings_dashboard",
+    ),
+    path(
         "instructor/<int:course_id>/learners/",
         views.course_enrolled_learners,
         name="course_enrolled_learners",

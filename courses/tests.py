@@ -4,7 +4,7 @@ from .forms import CourseAdminReviewForm
 from accounts.models import User
 import shutil
 import tempfile
-
+from decimal import Decimal
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 
@@ -2878,5 +2878,222 @@ class ViewEnrolledLearnersTests(TestCase):
             reverse(
                 "accounts:dashboard",
             ),
+            fetch_redirect_response=False,
+        )
+
+class InstructorEarningsDashboardTests(TestCase):
+    """Tests for the instructor earnings dashboard."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="earnings.instructor@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.other_instructor = User.objects.create_user(
+            email="earnings.other@example.com",
+            password=self.password,
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.learner_one = User.objects.create_user(
+            email="earnings.learner.one@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+            first_name="First",
+            last_name="Learner",
+        )
+
+        self.learner_two = User.objects.create_user(
+            email="earnings.learner.two@example.com",
+            password=self.password,
+            role=User.Role.LEARNER,
+            first_name="Second",
+            last_name="Learner",
+        )
+
+        self.category = Category.objects.create(
+            name="Earnings Testing",
+        )
+
+        self.course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Profitable Django Course",
+            description="Course used for earnings tests.",
+            level=Course.Level.BEGINNER,
+            price="29.99",
+            duration_minutes=60,
+            learning_objectives="Generate course earnings",
+            status=Course.Status.APPROVED,
+        )
+
+        self.second_course = Course.objects.create(
+            instructor=self.instructor,
+            category=self.category,
+            title="Second Paid Course",
+            description="Another instructor course.",
+            level=Course.Level.INTERMEDIATE,
+            price="20.00",
+            duration_minutes=90,
+            learning_objectives="Generate more earnings",
+            status=Course.Status.APPROVED,
+        )
+
+        self.other_course = Course.objects.create(
+            instructor=self.other_instructor,
+            category=self.category,
+            title="Other Instructor Course",
+            description="This course must not affect totals.",
+            level=Course.Level.BEGINNER,
+            price="100.00",
+            duration_minutes=60,
+            learning_objectives="Remain excluded",
+            status=Course.Status.APPROVED,
+        )
+
+        PaymentTransaction.objects.create(
+            learner=self.learner_one,
+            course=self.course,
+            amount=Decimal("29.99"),
+            status=PaymentTransaction.Status.SUCCESSFUL,
+        )
+
+        PaymentTransaction.objects.create(
+            learner=self.learner_two,
+            course=self.second_course,
+            amount=Decimal("20.00"),
+            status=PaymentTransaction.Status.SUCCESSFUL,
+        )
+
+        PaymentTransaction.objects.create(
+            learner=self.learner_one,
+            course=self.course,
+            amount=Decimal("50.00"),
+            status=PaymentTransaction.Status.PENDING,
+        )
+
+        PaymentTransaction.objects.create(
+            learner=self.learner_one,
+            course=self.other_course,
+            amount=Decimal("100.00"),
+            status=PaymentTransaction.Status.SUCCESSFUL,
+        )
+
+        self.earnings_url = reverse(
+            "courses:instructor_earnings_dashboard"
+        )
+
+    def test_instructor_can_open_earnings_dashboard(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.earnings_url
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Earnings Dashboard",
+        )
+
+    def test_dashboard_calculates_successful_earnings(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.earnings_url
+        )
+
+        self.assertEqual(
+            response.context["total_earnings"],
+            Decimal("49.99"),
+        )
+
+        self.assertEqual(
+            response.context["total_sales"],
+            2,
+        )
+
+        self.assertEqual(
+            response.context["unique_learners"],
+            2,
+        )
+
+    def test_pending_and_other_instructor_payments_are_excluded(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.earnings_url
+        )
+
+        self.assertNotEqual(
+            response.context["total_earnings"],
+            Decimal("99.99"),
+        )
+
+        self.assertNotEqual(
+            response.context["total_earnings"],
+            Decimal("149.99"),
+        )
+
+        self.assertNotContains(
+            response,
+            "Other Instructor Course",
+        )
+
+    def test_course_rows_contain_correct_earnings(self):
+        self.client.force_login(
+            self.instructor
+        )
+
+        response = self.client.get(
+            self.earnings_url
+        )
+
+        rows = {
+            course.pk: course
+            for course in response.context["course_rows"]
+        }
+
+        self.assertEqual(
+            rows[self.course.pk].successful_sales,
+            1,
+        )
+
+        self.assertEqual(
+            rows[self.course.pk].earnings,
+            Decimal("29.99"),
+        )
+
+        self.assertEqual(
+            rows[self.second_course.pk].earnings,
+            Decimal("20.00"),
+        )
+
+    def test_learner_cannot_view_earnings_dashboard(self):
+        self.client.force_login(
+            self.learner_one
+        )
+
+        response = self.client.get(
+            self.earnings_url
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("accounts:dashboard"),
             fetch_redirect_response=False,
         )
