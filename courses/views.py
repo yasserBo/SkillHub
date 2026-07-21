@@ -13,9 +13,11 @@ from .forms import (
     VideoLessonUploadForm,
 )
 from .models import (
+    Category,
     Course,
     CourseSection,
     Enrollment,
+    VideoLesson,
 )
 @login_required
 def instructor_course_list(request):
@@ -125,9 +127,13 @@ def course_submit(request, course_id):
     )
 
 def course_catalog(request):
-    """Display and search approved SkillHub courses."""
+    """Display, search, and filter approved SkillHub courses."""
 
     query = request.GET.get("q", "").strip()
+    category_value = request.GET.get("category", "").strip()
+    selected_level = request.GET.get("level", "").strip()
+
+    selected_category_id = None
 
     approved_courses = (
         Course.objects
@@ -135,6 +141,7 @@ def course_catalog(request):
         .select_related("category", "instructor")
     )
 
+    # Keyword search
     if query:
         approved_courses = approved_courses.filter(
             Q(title__icontains=query)
@@ -145,9 +152,58 @@ def course_catalog(request):
             | Q(instructor__email__icontains=query)
         )
 
+    # Category filter
+    if category_value.isdigit():
+        selected_category_id = int(category_value)
+
+        approved_courses = approved_courses.filter(
+            category_id=selected_category_id
+        )
+
+    # Level filter
+    valid_levels = {
+        value
+        for value, label in Course.Level.choices
+    }
+
+    if selected_level in valid_levels:
+        approved_courses = approved_courses.filter(
+            level=selected_level
+        )
+    else:
+        selected_level = ""
+
     approved_courses = approved_courses.order_by(
         "-created_at"
     )
+
+    # Only categories containing approved courses
+    categories = (
+        Category.objects
+        .filter(
+            courses__status=Course.Status.APPROVED
+        )
+        .distinct()
+        .order_by("name")
+    )
+
+    category_options = [
+        {
+            "id": category.pk,
+            "name": category.name,
+            "selected": category.pk == selected_category_id,
+        }
+        for category in categories
+    ]
+
+    level_options = [
+        {
+            "value": value,
+            "label": label,
+            "selected": value == selected_level,
+        }
+        for value, label in Course.Level.choices
+    ]
 
     paginator = Paginator(
         approved_courses,
@@ -157,15 +213,31 @@ def course_catalog(request):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
+    # Keep search and filters when moving between pages
+    pagination_parameters = request.GET.copy()
+    pagination_parameters.pop("page", None)
+
+    pagination_query = (
+        pagination_parameters.urlencode()
+    )
+
     return render(
         request,
         "courses/course_catalog.html",
         {
             "page_obj": page_obj,
+            "categories": category_options,
+            "level_choices": level_options,
             "query": query,
+            "selected_category_id": selected_category_id,
+            "selected_level": selected_level,
             "result_count": paginator.count,
+            "pagination_query": pagination_query,
         },
     )
+
+    
+
 
 
 

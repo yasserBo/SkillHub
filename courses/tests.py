@@ -1422,3 +1422,234 @@ class CourseEnrollmentTests(TestCase):
             response,
             "Enroll now",
         )
+
+class CourseFilterTests(TestCase):
+    """Tests for filtering courses by category and level."""
+
+    def setUp(self):
+        self.password = "Mango7!River#Cloud92"
+
+        self.instructor = User.objects.create_user(
+            email="filter.instructor@example.com",
+            password=self.password,
+            first_name="Filter",
+            last_name="Instructor",
+            role=User.Role.INSTRUCTOR,
+        )
+
+        self.programming = Category.objects.create(
+            name="Filter Programming",
+        )
+
+        self.business = Category.objects.create(
+            name="Filter Business",
+        )
+
+        self.beginner_python = Course.objects.create(
+            instructor=self.instructor,
+            category=self.programming,
+            title="Beginner Python Filtering",
+            description="A beginner programming course.",
+            level=Course.Level.BEGINNER,
+            price="10.00",
+            duration_minutes=90,
+            learning_objectives="Learn beginner Python",
+            status=Course.Status.APPROVED,
+        )
+
+        self.advanced_python = Course.objects.create(
+            instructor=self.instructor,
+            category=self.programming,
+            title="Advanced Python Filtering",
+            description="An advanced programming course.",
+            level=Course.Level.ADVANCED,
+            price="30.00",
+            duration_minutes=180,
+            learning_objectives="Learn advanced Python",
+            status=Course.Status.APPROVED,
+        )
+
+        self.beginner_business = Course.objects.create(
+            instructor=self.instructor,
+            category=self.business,
+            title="Beginner Business Filtering",
+            description="A beginner business course.",
+            level=Course.Level.BEGINNER,
+            price="15.00",
+            duration_minutes=60,
+            learning_objectives="Learn business fundamentals",
+            status=Course.Status.APPROVED,
+        )
+
+        self.hidden_draft = Course.objects.create(
+            instructor=self.instructor,
+            category=self.business,
+            title="Hidden Draft Business Course",
+            description="This draft must remain hidden.",
+            level=Course.Level.ADVANCED,
+            price="20.00",
+            duration_minutes=80,
+            learning_objectives="Hidden objective",
+            status=Course.Status.DRAFT,
+        )
+
+        self.catalog_url = reverse(
+            "courses:course_catalog"
+        )
+
+    def test_filter_by_category(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "category": self.programming.pk,
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Beginner Python Filtering",
+        )
+
+        self.assertContains(
+            response,
+            "Advanced Python Filtering",
+        )
+
+        self.assertNotContains(
+            response,
+            "Beginner Business Filtering",
+        )
+
+    def test_filter_by_level(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "level": Course.Level.BEGINNER,
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Beginner Python Filtering",
+        )
+
+        self.assertContains(
+            response,
+            "Beginner Business Filtering",
+        )
+
+        self.assertNotContains(
+            response,
+            "Advanced Python Filtering",
+        )
+
+    def test_filter_by_category_and_level(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "category": self.programming.pk,
+                "level": Course.Level.ADVANCED,
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Advanced Python Filtering",
+        )
+
+        self.assertNotContains(
+            response,
+            "Beginner Python Filtering",
+        )
+
+        self.assertNotContains(
+            response,
+            "Beginner Business Filtering",
+        )
+
+    def test_search_and_filters_work_together(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "q": "Python",
+                "category": self.programming.pk,
+                "level": Course.Level.BEGINNER,
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Beginner Python Filtering",
+        )
+
+        self.assertNotContains(
+            response,
+            "Advanced Python Filtering",
+        )
+
+        self.assertNotContains(
+            response,
+            "Beginner Business Filtering",
+        )
+
+    def test_draft_courses_remain_hidden(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "category": self.business.pk,
+                "level": Course.Level.ADVANCED,
+            },
+        )
+
+        self.assertNotContains(
+            response,
+            "Hidden Draft Business Course",
+        )
+
+        self.assertContains(
+            response,
+            "No matching courses found",
+        )
+
+    def test_selected_filters_are_kept_in_context(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "category": self.programming.pk,
+                "level": Course.Level.ADVANCED,
+            },
+        )
+
+        self.assertEqual(
+            response.context["selected_category_id"],
+            self.programming.pk,
+        )
+
+        self.assertEqual(
+            response.context["selected_level"],
+            Course.Level.ADVANCED,
+        )
+
+    def test_invalid_filters_do_not_crash_page(self):
+        response = self.client.get(
+            self.catalog_url,
+            {
+                "category": "invalid",
+                "level": "INVALID_LEVEL",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Beginner Python Filtering",
+        )
+
+        self.assertContains(
+            response,
+            "Advanced Python Filtering",
+        )

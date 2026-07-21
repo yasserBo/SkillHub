@@ -13,53 +13,108 @@ Browse Courses | SkillHub
         </h1>
 
         <p class="text-secondary">
-            Discover approved courses and start developing new skills.
+            Search and filter approved courses by category and level.
         </p>
     </div>
 
-    <div class="row justify-content-center mb-5">
-        <div class="col-lg-8">
+    <!-- Search and filters -->
+    <div class="card border-0 shadow-sm mb-5">
+        <div class="card-body p-4">
 
             <form method="get" action="{% url 'courses:course_catalog' %}">
-                <div class="input-group input-group-lg">
+                <div class="row g-3 align-items-end">
 
-                    <input type="search" name="q" value="{{ query }}" class="form-control"
-                        placeholder="Search by title, category or instructor" aria-label="Search courses">
+                    <div class="col-lg-5">
+                        <label for="course-search" class="form-label fw-semibold">
+                            Search
+                        </label>
 
-                    <button type="submit" class="btn btn-primary">
-                        Search
-                    </button>
+                        <input id="course-search" type="search" name="q" value="{{ query }}" class="form-control"
+                            placeholder="Title, description or instructor">
+                    </div>
 
-                    {% if query %}
-                    <a href="{% url 'courses:course_catalog' %}" class="btn btn-outline-secondary">
-                        Clear
-                    </a>
-                    {% endif %}
+                    <div class="col-md-6 col-lg-3">
+                        <label for="category-filter" class="form-label fw-semibold">
+                            Category
+                        </label>
+
+                        <select id="category-filter" name="category" class="form-select">
+                            <option value="">
+                                All categories
+                            </option>
+
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" {% if category.selected %}selected{% endif %}>
+                                {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-6 col-lg-2">
+                        <label for="level-filter" class="form-label fw-semibold">
+                            Level
+                        </label>
+
+                        <select id="level-filter" name="level" class="form-select">
+                            <option value="">
+                                All levels
+                            </option>
+
+                            {% for level in level_choices %}
+                            <option value="{{ level.value }}" {% if level.selected %}selected{% endif %}>
+                                {{ level.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-lg-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            Apply filters
+                        </button>
+                    </div>
 
                 </div>
-            </form>
 
-            {% if query %}
-            <p class="text-secondary mt-3 mb-0">
-                {{ result_count }}
-                result{{ result_count|pluralize }}
-                found for
-                <strong>“{{ query }}”</strong>
-            </p>
-            {% endif %}
+                {% if query or selected_category_id or selected_level %}
+                <div class="d-flex flex-wrap
+                                justify-content-between
+                                align-items-center gap-2 mt-3">
+
+                    <p class="text-secondary mb-0">
+                        {{ result_count }}
+                        course{{ result_count|pluralize }}
+                        found
+                    </p>
+
+                    <a href="{% url 'courses:course_catalog' %}" class="btn btn-sm btn-outline-secondary">
+                        Clear all filters
+                    </a>
+
+                </div>
+                {% endif %}
+            </form>
 
         </div>
     </div>
 
-    {% if page_obj %}
+    <!-- Course results -->
+    {% if page_obj.object_list %}
+
     <div class="row g-4">
 
         {% for course in page_obj %}
         <div class="col-md-6 col-lg-4">
+
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body d-flex flex-column">
 
-                    <div class="d-flex justify-content-between mb-3">
+                    <div class="d-flex
+                                        justify-content-between
+                                        align-items-start
+                                        gap-2 mb-3">
+
                         <span class="badge text-bg-primary">
                             {{ course.category.name }}
                         </span>
@@ -67,6 +122,7 @@ Browse Courses | SkillHub
                         <span class="badge text-bg-light">
                             {{ course.get_level_display }}
                         </span>
+
                     </div>
 
                     <h2 class="h5 fw-bold">
@@ -89,13 +145,19 @@ Browse Courses | SkillHub
                             {% endif %}
                         </p>
 
-                        <p class="small mb-3">
+                        <p class="small mb-1">
                             <strong>Level:</strong>
                             {{ course.get_level_display }}
                         </p>
 
-                        <div class="d-flex justify-content-between
-            align-items-center mb-3">
+                        <p class="small mb-3">
+                            <strong>Duration:</strong>
+                            {{ course.duration_display }}
+                        </p>
+
+                        <div class="d-flex
+                                            justify-content-between
+                                            align-items-center mb-3">
 
                             <span class="fw-bold text-primary">
                                 {% if course.is_free %}
@@ -108,6 +170,7 @@ Browse Courses | SkillHub
                             <span class="badge text-bg-success">
                                 Approved
                             </span>
+
                         </div>
 
                         <a href="{% url 'courses:course_detail' course.pk %}" class="btn btn-outline-primary w-100">
@@ -118,19 +181,21 @@ Browse Courses | SkillHub
 
                 </div>
             </div>
+
         </div>
         {% endfor %}
 
     </div>
 
+    <!-- Pagination -->
     {% if page_obj.has_other_pages %}
-    <nav class="mt-5" aria-label="Course pages">
+    <nav class="mt-5" aria-label="Course catalog pages">
         <ul class="pagination justify-content-center">
 
             {% if page_obj.has_previous %}
             <li class="page-item">
                 <a class="page-link"
-                    href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query|urlencode }}{% endif %}">
+                    href="?page={{ page_obj.previous_page_number }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">
                     Previous
                 </a>
             </li>
@@ -143,6 +208,7 @@ Browse Courses | SkillHub
             {% endif %}
 
             {% for page_number in page_obj.paginator.page_range %}
+
             {% if page_number == page_obj.number %}
             <li class="page-item active">
                 <span class="page-link">
@@ -151,17 +217,19 @@ Browse Courses | SkillHub
             </li>
             {% else %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_number }}{% if query %}&q={{ query|urlencode }}{% endif %}">
+                <a class="page-link"
+                    href="?page={{ page_number }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">
                     {{ page_number }}
                 </a>
             </li>
             {% endif %}
+
             {% endfor %}
 
             {% if page_obj.has_next %}
             <li class="page-item">
                 <a class="page-link"
-                    href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query|urlencode }}{% endif %}">
+                    href="?page={{ page_obj.next_page_number }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">
                     Next
                 </a>
             </li>
@@ -178,34 +246,25 @@ Browse Courses | SkillHub
     {% endif %}
 
     {% else %}
+
     <div class="card border-0 shadow-sm">
         <div class="card-body text-center py-5">
 
-            {% if query %}
             <h2 class="h4">
                 No matching courses found
             </h2>
 
             <p class="text-secondary">
-                No approved courses match
-                <strong>“{{ query }}”</strong>.
+                Try changing your keyword, category, or level.
             </p>
 
             <a href="{% url 'courses:course_catalog' %}" class="btn btn-outline-primary">
-                View all courses
+                Clear all filters
             </a>
-            {% else %}
-            <h2 class="h4">
-                No courses are available yet
-            </h2>
-
-            <p class="text-secondary mb-0">
-                Approved courses will appear here.
-            </p>
-            {% endif %}
 
         </div>
     </div>
+
     {% endif %}
 
 </div>
